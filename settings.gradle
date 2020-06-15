@@ -1,0 +1,4 @@
+rootProject.name = 'aap-lv2'
+include ':androidaudioplugin', ':androidaudioplugin-lv2', ':aaplv2plugins', ':aappluginsample'
+project(':androidaudioplugin').projectDir = new File('../android-audio-plugin-framework/java/androidaudioplugin')
+
