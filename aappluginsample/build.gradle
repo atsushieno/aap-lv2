@@ -56,6 +56,7 @@ android {
 dependencies {
     implementation project(':androidaudioplugin')
     implementation project(':androidaudioplugin-lv2')
+    implementation project(':androidaudioplugin-ui-androidx')
     implementation project(':mda_lv2_plugins')
 
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"

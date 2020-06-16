@@ -1,4 +1,4 @@
-package org.androidaudioplugin.aappluginsample
+package org.androidaudioplugin.ui.androidx
 
 import android.content.Context
 import android.os.Bundle
@@ -7,14 +7,14 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import androidx.appcompat.app.AppCompatActivity
-import kotlinx.android.synthetic.main.activity_main.*
+import kotlinx.android.synthetic.main.local_plugin_list.*
 import kotlinx.android.synthetic.main.audio_plugin_service_list_item.view.*
 import org.androidaudioplugin.AudioPluginHostHelper
 import org.androidaudioplugin.AudioPluginService
 import org.androidaudioplugin.AudioPluginServiceInformation
 import org.androidaudioplugin.PluginInformation
 
-class MainActivity : AppCompatActivity() {
+class LocalPluginListActivity : AppCompatActivity() {
 
     inner class PluginViewAdapter(ctx:Context, layout: Int, array: Array<Pair<AudioPluginServiceInformation,PluginInformation>>)
         : ArrayAdapter<Pair<AudioPluginServiceInformation,PluginInformation>>(ctx, layout, array)
@@ -38,7 +38,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        setContentView(R.layout.local_plugin_list)
 
         AudioPluginService.enableDebug = true
 
