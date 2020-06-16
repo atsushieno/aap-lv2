@@ -13,7 +13,7 @@ set (AAPDIR "../../../../../android-audio-plugin-framework")
 
 if (ANDROID)
 
-set (LV2_DEP_DIST "${AAPDIR}/dependencies/dist/${CMAKE_ANDROID_ARCH_ABI}")
+set (LV2_DEP_DIST "../../../../dependencies/dist/${CMAKE_ANDROID_ARCH_ABI}")
 
 # it is not usable until cmake 3.14...
 #target_link_directories (androidaudioplugin-lv2 ...)
