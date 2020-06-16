@@ -1,4 +1,4 @@
-package org.androidaudioplugin.aappluginsample
+package org.androidaudioplugin.aapmdalv2
 
 import org.junit.Test
 

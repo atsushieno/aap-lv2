@@ -11,7 +11,7 @@ cmake_minimum_required(VERSION 3.6.0)
 # automatically packages shared libraries with your APK.
 
 add_library( # Specifies the name of the library.
-        aappluginsample
+        aap-mda-lv2
 
         # Sets the library as a shared library.
         SHARED
@@ -20,14 +20,14 @@ add_library( # Specifies the name of the library.
         "src/main/jni/dummy.cpp"
         )
 
-target_include_directories(aappluginsample
+target_include_directories(aap-mda-lv2
         PRIVATE
         "${Project_SOURCE_DIR}/../../../native/plugin-api/include"
         "${Project_SOURCE_DIR}/../../../native/androidaudioplugin/core/include"
         "${Project_SOURCE_DIR}/../../../native/androidaudioplugin/android/src/gen/include"
         )
 
-target_compile_options(aappluginsample
+target_compile_options(aap-mda-lv2
         PRIVATE
         -std=c++17
         -Wall
@@ -36,4 +36,4 @@ target_compile_options(aappluginsample
         -Wshadow-field
         )
 
-target_link_libraries(aappluginsample android log)
+target_link_libraries(aap-mda-lv2 android log)
