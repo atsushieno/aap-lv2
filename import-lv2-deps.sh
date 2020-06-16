@@ -20,8 +20,13 @@ done
 
 # Copy LV2 metadata files etc.
 # The non-native parts should be the same so we just copy files from x86 build.
-mkdir -p mda_lv2_plugins/src/main/assets/
-cp -R dependencies/dist/x86/lib/lv2/ mda_lv2_plugins/src/main/assets/
+#
+# Also, we only need `mda.lv2` here. Avoid copying those LV2 (SDK) files.
+# But not that when you are copying this script, you should probably
+# NOT name a specific plugin.
+#
+mkdir -p mda_lv2_plugins/src/main/assets/lv2
+cp -R dependencies/dist/x86/lib/lv2/mda.lv2 mda_lv2_plugins/src/main/assets/lv2/
 # ... except for *.so files. They are stored under jniLibs.
 rm mda_lv2_plugins/src/main/assets/lv2/*/*.so
 
