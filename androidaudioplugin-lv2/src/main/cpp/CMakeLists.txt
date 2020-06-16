@@ -13,7 +13,7 @@ set (AAPDIR "../../../../../android-audio-plugin-framework")
 
 if (ANDROID)
 
-set (LV2_DEP_DIST "../../../../dependencies/dist/${CMAKE_ANDROID_ARCH_ABI}")
+set (LV2_DEP_DIST "${CMAKE_CURRENT_LIST_DIR}/../../../../dependencies/dist/${CMAKE_ANDROID_ARCH_ABI}")
 
 # it is not usable until cmake 3.14...
 #target_link_directories (androidaudioplugin-lv2 ...)
@@ -26,65 +26,69 @@ else (ANDROID)
 
 set (LV2_DEP_DIST "${AAPDIR}/dependencies/lv2-desktop/dist")
 
-# it is not usable until cmake 3.14...
 target_link_directories (androidaudioplugin-lv2
 		"${LV2_DEP_DIST}/lib/"
 )
 
 endif (ANDROID)
 
-# set includes and libs
+# set resolve dependencies via pkg-config
 
 set (ENV{PKG_CONFIG_PATH} "${LV2_DEP_DIST}/lib/pkgconfig/")
+
+find_package ( PkgConfig REQUIRED )
+
+# Mandatory libraries: serd, sord, lilv
+pkg_search_module ( SERD REQUIRED serd-0>=0.28.0 )
+pkg_search_module ( SORD REQUIRED sord-0>=0.16.0 )
+pkg_search_module ( SRATOM REQUIRED sratom-0>=0.6.0 )
+pkg_search_module ( LILV REQUIRED lilv-0>=0.24.0 )
+
+# set includes and libs
+
+# FIXME: pkg-config still does not work for Android, so this ugly include hack is required.
 
 if (ANDROID)
 
 set (androidaudioplugin-lv2_INCLUDES
-	"${AAPDIR}/native/plugin-api/include"
-	"${AAPDIR}/native/androidaudioplugin/core/include"
-	"${LV2_DEP_DIST}/include/lilv-0"
-	"${LV2_DEP_DIST}/include"
-	)
+		"${AAPDIR}/native/plugin-api/include"
+		"${AAPDIR}/native/androidaudioplugin/core/include"
+		"${LV2_DEP_DIST}/include/lilv-0"
+		"${LV2_DEP_DIST}/include"
+		)
+
+else (ANDROID)
+
+set (androidaudioplugin-lv2_INCLUDES
+		"${AAPDIR}/native/plugin-api/include"
+		"${AAPDIR}/native/androidaudioplugin/core/include"
+		${SERD_INCLUDE_DIRS}
+		${SORD_INCLUDE_DIRS}
+		${SRATOM_INCLUDE_DIRS}
+		${LILV_INCLUDE_DIRS}
+		)
+
+endif (ANDROID)
+
+if (ANDROID)
 
 set (androidaudioplugin-lv2_LIBS ${androidaudioplugin_LIBS} android log)
 
 else (ANDROID)
 
-set (androidaudioplugin-lv2_INCLUDES
-	"${AAPDIR}/native/plugin-api/include"
-	"${AAPDIR}/native/androidaudioplugin/core/include"
-	"${LV2_DEP_DIST}/include/lilv-0"
-	"${LV2_DEP_DIST}/include"
-	)
-
 set (androidaudioplugin-lv2_LIBS ${androidaudioplugin_LIBS})
 
 endif (ANDROID)
 
+set (androidaudioplugin-lv2_LIBS ${androidaudioplugin-lv2_LIBS} lilv-0 androidaudioplugin)
 
-find_package ( PkgConfig REQUIRED )
-
-# Mandatory libraries: serd, sord, lilv
-pkg_check_modules ( SERD REQUIRED serd-0>=0.28.0 )
-pkg_check_modules ( SORD REQUIRED sord-0>=0.16.0 )
-pkg_check_modules ( SRATOM REQUIRED sratom-0>=0.6.0 )
-pkg_check_modules ( LILV REQUIRED lilv-0>=0.24.0 )
+# sources
 
 set (androidaudioplugin-lv2_SOURCES
-	${androidaudioplugin-lv2_SOURCES}
-	"src/android-audio-plugin-lv2-bridge.cpp"
-	"src/AudioPluginLV2LocalHost_native.cpp"
-	)
-
-set (androidaudioplugin-lv2_INCLUDES
-	${androidaudioplugin-lv2_INCLUDES}
-	${SERD_INCLUDE_DIRS}
-	${SORD_INCLUDE_DIRS}
-	${SRATOM_INCLUDE_DIRS}
-	${LILV_INCLUDE_DIRS}
-	)
-
-set (androidaudioplugin-lv2_LIBS ${androidaudioplugin-lv2_LIBS} lilv-0 androidaudioplugin)
+		${androidaudioplugin-lv2_SOURCES}
+		"src/android-audio-plugin-lv2-bridge.cpp"
+		"src/AudioPluginLV2LocalHost_native.cpp"
+		)
 
 # Specifies a library name, specifies whether the library is STATIC or
 # SHARED, and provides relative paths to the source code. You can
