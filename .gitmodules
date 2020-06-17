@@ -1,0 +1,3 @@
+[submodule "dependencies/sfizz"]
+	path = dependencies/sfizz
+	url = https://github.com/sfztools/sfizz.git
