@@ -4,32 +4,12 @@
 
 cmake_minimum_required(VERSION 3.5.1)
 
-# List of sources. Android build has some additional sources.
-set (androidaudioplugin-lv2_SOURCES
-	"src/android-audio-plugin-lv2-bridge.cpp"
-	)
-
-set (AAPDIR "../../../../../android-audio-plugin-framework")
+get_filename_component (AAPDIR "../../../../../android-audio-plugin-framework" ABSOLUTE)
 
 if (ANDROID)
-
-set (LV2_DEP_DIST "${CMAKE_CURRENT_LIST_DIR}/../../../../dependencies/dist/${CMAKE_ANDROID_ARCH_ABI}")
-
-# it is not usable until cmake 3.14...
-#target_link_directories (androidaudioplugin-lv2 ...)
-link_directories (
-		"${LV2_DEP_DIST}/lib/"
-		"${AAPDIR}/java/androidaudioplugin/build/intermediates/merged_native_libs/debug/out/lib/${CMAKE_ANDROID_ARCH_ABI}"
-)
-
+get_filename_component (LV2_DEP_DIST "../../../../dependencies/dist/${CMAKE_ANDROID_ARCH_ABI}" ABSOLUTE)
 else (ANDROID)
-
-set (LV2_DEP_DIST "${AAPDIR}/dependencies/lv2-desktop/dist")
-
-target_link_directories (androidaudioplugin-lv2
-		"${LV2_DEP_DIST}/lib/"
-)
-
+get_filename_component (LV2_DEP_DIST "${AAPDIR}/dependencies/lv2-desktop/dist" ABSOLUTE)
 endif (ANDROID)
 
 # set resolve dependencies via pkg-config
@@ -44,20 +24,7 @@ pkg_search_module ( SORD REQUIRED sord-0>=0.16.0 )
 pkg_search_module ( SRATOM REQUIRED sratom-0>=0.6.0 )
 pkg_search_module ( LILV REQUIRED lilv-0>=0.24.0 )
 
-# set includes and libs
-
-# FIXME: pkg-config still does not work for Android, so this ugly include hack is required.
-
-if (ANDROID)
-
-set (androidaudioplugin-lv2_INCLUDES
-		"${AAPDIR}/native/plugin-api/include"
-		"${AAPDIR}/native/androidaudioplugin/core/include"
-		"${LV2_DEP_DIST}/include/lilv-0"
-		"${LV2_DEP_DIST}/include"
-		)
-
-else (ANDROID)
+# set INCLUDE_DIRS and LIBRARY_DIRS
 
 set (androidaudioplugin-lv2_INCLUDES
 		"${AAPDIR}/native/plugin-api/include"
@@ -68,27 +35,40 @@ set (androidaudioplugin-lv2_INCLUDES
 		${LILV_INCLUDE_DIRS}
 		)
 
+# target_link_directories is not usable until cmake 3.14...
+link_directories (
+		${SERD_LIBRARY_DIRS}
+		${SORD_LIBRARY_DIRS}
+		${SRATOM_LIBRARY_DIRS}
+		${LILV_LIBRARY_DIRS}
+)
+if (ANDROID)
+link_directories (
+		"${AAPDIR}/java/androidaudioplugin/build/intermediates/merged_native_libs/debug/out/lib/${CMAKE_ANDROID_ARCH_ABI}"
+)
 endif (ANDROID)
+
+# set LIBS
 
 if (ANDROID)
-
 set (androidaudioplugin-lv2_LIBS ${androidaudioplugin_LIBS} android log)
-
 else (ANDROID)
-
 set (androidaudioplugin-lv2_LIBS ${androidaudioplugin_LIBS})
-
 endif (ANDROID)
-
 set (androidaudioplugin-lv2_LIBS ${androidaudioplugin-lv2_LIBS} lilv-0 androidaudioplugin)
 
-# sources
+# set SOURCES. Android build has some additional ones.
 
 set (androidaudioplugin-lv2_SOURCES
 		${androidaudioplugin-lv2_SOURCES}
 		"src/android-audio-plugin-lv2-bridge.cpp"
 		"src/AudioPluginLV2LocalHost_native.cpp"
 		)
+if (ANDROID)
+set (androidaudioplugin-lv2_SOURCES
+		"src/android-audio-plugin-lv2-bridge.cpp"
+		)
+endif (ANDROID)
 
 # Specifies a library name, specifies whether the library is STATIC or
 # SHARED, and provides relative paths to the source code. You can
