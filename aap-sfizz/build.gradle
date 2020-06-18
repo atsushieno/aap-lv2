@@ -16,7 +16,6 @@ android {
         externalNativeBuild {
             cmake {
                 arguments "-DSFIZZ_JACK=off", "-DSFIZZ_STATIC_LIBSNDFILE=on"
-                //cppFlags "-I /sources/aap-lv2/dependencies/dist/x86/include"
             }
         }
 
@@ -61,4 +60,23 @@ dependencies {
     testImplementation 'junit:junit:4.+'
     androidTestImplementation 'androidx.test.ext:junit:1.1.1'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0'
+}
+
+task copyLv2Manifests(type: Copy) {
+    from(".cxx/cmake/debug/x86/sfizz.lv2") {
+        exclude '**/*.so'
+    }
+    into 'src/main/assets/lv2/sfizz.lv2'
+}
+
+task deleteLV2Manifests(type: Delete) {
+    delete 'src/main/assets/lv2/sfizz.lv2'
+}
+
+tasks.whenTaskAdded { task ->
+    if (task.name == "bundleDebugAar" || task.name == "bundleReleaseAar")
+        task.dependsOn copyLv2Manifests
+    // FIXME: it's hacky, but `clean` didn't work.
+    if (task.name == "externalNativeBuildCleanDebug" || task.name == "externalNativeBuildCleanRelease")
+        task.dependsOn deleteLV2Manifests
 }
