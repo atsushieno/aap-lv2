@@ -4,9 +4,17 @@ ABIS_SIMPLE= x86 x86_64 armeabi-v7a arm64-v8a
 all: build-all
 
 build-all: \
+	patch-sfizz \
 	get-lv2-deps \
 	import-lv2-deps \
 	build-java
+
+patch-sfizz: dependencies/sfizz/patch.stamp
+
+dependencies/sfizz/patch.stamp:
+	cd dependencies/sfizz && \
+		patch -i ../../sfizz-android.patch -p1 && \
+		touch patch.stamp || exit 1
 
 get-lv2-deps: dependencies/dist/stamp
 
@@ -27,5 +35,5 @@ build-lv2-importer:
 	cd tools/aap-import-lv2-metadata && rm -rf build && mkdir -p build && cd build && cmake -DCMAKE_BUILD_TYPE=Debug .. && make
 
 build-java:
-	ANDROID_SDK_ROOT=$(ANDROID_SDK_ROOT) ./gradlew assemble
+	ANDROID_SDK_ROOT=$(ANDROID_SDK_ROOT) ./gradlew assembleDebug
  
