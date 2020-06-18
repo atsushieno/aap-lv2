@@ -1,12 +1,6 @@
 /*
  * 
- * aap-import-lv2-metadata: generates helper files for LV2AudioPluginService
- * 
- * It generates:
- * 
- * - src/res/xml/aap_metadata.xml (default) : AAP metadata XML file.
- * - src/java/LV2Plugins.java : contains local LV2 path to plugin mappings,
- *   which is used to initialize LV2 paths.
+ * aap-import-lv2-metadata: generates aap_metadata.xml from LV2 metadata
  * 
  */
 
@@ -35,7 +29,6 @@ LilvNode
 	*instrument_plugin_uri_node,
 	*audio_port_uri_node,
 	/* *control_port_uri_node, */
-	*cv_port_uri_node,
 	*input_port_uri_node,
 	*output_port_uri_node;
 
@@ -46,8 +39,6 @@ LilvNode
 PORTCHECKER_SINGLE (IS_AUDIO_PORT, audio_port_uri_node)
 PORTCHECKER_SINGLE (IS_INPUT_PORT, input_port_uri_node)
 PORTCHECKER_SINGLE (IS_OUTPUT_PORT, output_port_uri_node)
-/*PORTCHECKER_SINGLE (IS_CONTROL_PORT, control_port_uri_node)*/
-PORTCHECKER_SINGLE (IS_CV_PORT, cv_port_uri_node)
 PORTCHECKER_SINGLE (IS_ATOM_PORT, atom_port_uri_node)
 PORTCHECKER_AND (IS_AUDIO_IN, IS_AUDIO_PORT, IS_INPUT_PORT)
 PORTCHECKER_AND (IS_AUDIO_OUT, IS_AUDIO_PORT, IS_OUTPUT_PORT)
@@ -65,8 +56,12 @@ int stringpool_entry = 0;
 
 int main(int argc, const char **argv)
 {
-	if (argc < 1) {
-		fprintf (stderr, "Usage: %s [lv2-dir] [res-xml-dir]\n", argv[0]);
+	bool showHelp = argc < 3;
+	for (int i = 1; i < argc; i++)
+		if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0)
+			showHelp = true;
+	if (showHelp) {
+		fprintf (stderr, "Usage: %s [lib-lv2-dir] [res-xml-dir]\n", argv[0]);
 		return 1;
 	}
 	
@@ -129,19 +124,20 @@ int main(int argc, const char **argv)
 	
 	int numbered_files = 0;
 	
-	char *xmlFilename = (char*) malloc(snprintf(NULL, 0, "%s/aap_metadata.xml", xmldir));
+	char *xmlFilename = (char*) calloc(snprintf(NULL, 0, "%s/aap_metadata.xml", xmldir) + 1, 1);
 	sprintf(xmlFilename, "%s/aap_metadata.xml", xmldir);
 	fprintf(stderr, "Writing metadata file %s\n", xmlFilename);
-	FILE *xmlFP = fopen(xmlFilename, "w+");
+	FILE *xmlFP = fopen(xmlFilename, "w");
 	if (!xmlFP) {
 		fprintf(stderr, "Failed to create XML output file: %s\n", xmlFilename);
+		fprintf(stderr, "Error code: %d\n", errno);
 		return 1;
 	}
 	
-	fprintf(xmlFP, "<plugins>\n");
+	fprintf(xmlFP, "<plugins>");
 
 	int numPlugins = lilv_plugins_size(plugins);
-	char **pluginLv2Dirs = (char **) calloc(sizeof(char*) * numPlugins, 1);
+	char **pluginLv2Dirs = (char **) calloc(sizeof(char*) * numPlugins + 1, 1);
 	int numPluginDirEntries = 0;
 
 	for (auto i = lilv_plugins_begin(plugins); !lilv_plugins_is_end(plugins, i); i = lilv_plugins_next(plugins, i)) {
