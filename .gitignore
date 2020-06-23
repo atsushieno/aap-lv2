@@ -19,4 +19,5 @@ build
 cmake-build-debug
 android-lv2-binaries.zip
 android-libsndfile-binaries.zip
+aap-guitarix-binaries.zip
 aap_metadata.xml
