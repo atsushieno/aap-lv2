@@ -1,21 +1,23 @@
 diff --git a/cmake/SfizzConfig.cmake b/cmake/SfizzConfig.cmake
-index 16c805b..73b06ff 100644
+index 16c805b..2af1a95 100644
 --- a/cmake/SfizzConfig.cmake
 +++ b/cmake/SfizzConfig.cmake
-@@ -51,8 +51,17 @@ if (SFIZZ_USE_VCPKG OR CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
+@@ -51,8 +51,19 @@ if (SFIZZ_USE_VCPKG OR CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
      target_include_directories(sfizz-sndfile INTERFACE "${SNDFILE_INCLUDE_DIR}")
      target_link_libraries(sfizz-sndfile INTERFACE sndfile-static)
  else()
 +    if (ANDROID)
 +        get_filename_component (LV2_DEP_DIST "${CMAKE_CURRENT_LIST_DIR}}/../../dist/${CMAKE_ANDROID_ARCH_ABI}" ABSOLUTE)
 +        set (ENV{PKG_CONFIG_PATH} "${LV2_DEP_DIST}/lib/pkgconfig/")
++        get_filename_component (SFIZZ_DEPS_DIST "${CMAKE_CURRENT_LIST_DIR}}/../../sfizz-deps/dist/${CMAKE_ANDROID_ARCH_ABI}" ABSOLUTE)
++        set (ENV{PKG_CONFIG_PATH} "${SFIZZ_DEPS_DIST}/lib/pkgconfig/")
 +    endif (ANDROID)
 +
      find_package(PkgConfig REQUIRED)
      pkg_check_modules(SNDFILE "sndfile" REQUIRED)
 +    if (ANDROID) # FIXME: it is kind of hack, we should resort to pkg-config...
-+        target_include_directories(sfizz-sndfile INTERFACE ${LV2_DEP_DIST}/include)
-+        link_directories(${LV2_DEP_DIST}/lib)
++        target_include_directories(sfizz-sndfile INTERFACE ${LV2_DEP_DIST}/include ${SFIZZ_DEPS_DIST}/include)
++        link_directories(${LV2_DEP_DIST}/lib ${SFIZZ_DEPS_DIST}/lib)
 +    endif (ANDROID)
      target_include_directories(sfizz-sndfile INTERFACE ${SNDFILE_INCLUDE_DIRS})
      if (SFIZZ_STATIC_LIBSNDFILE)
