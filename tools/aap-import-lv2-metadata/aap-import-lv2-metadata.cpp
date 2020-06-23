@@ -5,6 +5,7 @@
  */
 
 #include <stdio.h>
+#include <errno.h>
 #include <dirent.h>
 #include <stdlib.h>
 #include <string.h>
