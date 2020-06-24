@@ -18,7 +18,7 @@
             </intent-filter>
         </activity>
         <service android:name="org.androidaudioplugin.AudioPluginService"
-            android:label="AAP mda-lv2 plugins">
+            android:label="@string/app_name">
             <intent-filter>
                 <action
                     android:name="org.androidaudioplugin.AudioPluginService" />
