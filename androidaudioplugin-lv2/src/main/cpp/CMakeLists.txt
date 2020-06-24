@@ -60,15 +60,9 @@ set (androidaudioplugin-lv2_LIBS ${androidaudioplugin-lv2_LIBS} lilv-0 androidau
 # set SOURCES. Android build has some additional ones.
 
 set (androidaudioplugin-lv2_SOURCES
-		${androidaudioplugin-lv2_SOURCES}
 		"src/android-audio-plugin-lv2-bridge.cpp"
 		"src/AudioPluginLV2LocalHost_native.cpp"
 		)
-if (ANDROID)
-set (androidaudioplugin-lv2_SOURCES
-		"src/android-audio-plugin-lv2-bridge.cpp"
-		)
-endif (ANDROID)
 
 # Specifies a library name, specifies whether the library is STATIC or
 # SHARED, and provides relative paths to the source code. You can
