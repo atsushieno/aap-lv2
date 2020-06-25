@@ -43,7 +43,7 @@ dependencies/sfizz-deps/stamp: android-libsndfile-binaries.zip
 	touch dependencies/sfizz-deps/stamp
 
 android-libsndfile-binaries.zip:
-	wget https://github.com/atsushieno/android-native-audio-builders/releases/download/r5/android-libsndfile-binaries.zip
+	wget https://github.com/atsushieno/android-native-audio-builders/releases/download/r6/android-libsndfile-binaries.zip
 
 get-guitarix-deps: dependencies/guitarix-deps/stamp
 
@@ -56,7 +56,7 @@ dependencies/guitarix-deps/stamp: aap-guitarix-binaries.zip
 	touch dependencies/guitarix-deps/stamp
 
 aap-guitarix-binaries.zip:
-	wget https://github.com/atsushieno/android-native-audio-builders/releases/download/r5/aap-guitarix-binaries.zip
+	wget https://github.com/atsushieno/android-native-audio-builders/releases/download/r6/aap-guitarix-binaries.zip
 
 # Run importers
 
