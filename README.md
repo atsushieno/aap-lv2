@@ -1,15 +1,38 @@
 # AAP-LV2: LV2 backend and ports to AAP
 
-This repository will be used to move LV2 specific stuff from [android-audio-plugin-framework](https://github.com/atsushieno/android-audio-plugin-framework).
+This repository contains LV2 backend (or wrapper, or whatever) support for [android-audio-plugin-framework](https://github.com/atsushieno/android-audio-plugin-framework), as well as samples.
+
+The sample ports include:
+
+- https://gitlab.com/drobilla/mda-lv2
+- https://github.com/brummer10/guitarix
+- https://github.com/sfztools/sfizz (still needs some host that can pass sfz filename)
+
+
+## Building
 
 Right now this repository is supposed to be checked out in the same directory as `android-audio-plugin-framework` (name fixed).
 
+`make` should take care of the builds.
+
+
 ## Importing LV2 plugins
 
+There are couple of steps to import existing LV2 plugsin into AAP world:
+
+- Build plugin binaries for Android ABIs
+- Convert LV2 resources to Android assets
+- Generate `aap_metadata.xml`
+
+### building plugin binaries for Android ABIs
+
+The dependency Android binaries are built from [android-native-audio-builders](https://github.com/atsushieno/android-native-audio-builders) repository. It builds LV2/lilv dependencies as well as plugin sample binaries.
+
+For LV2, mda-lv2, and guitarix, the `make` step lets it download from the release tarballs.
 
 ### directory structure conversion
 
-LV2 packaging is not straightforward. Android native libraries are usually packaged like
+AAP-LV2 packaging is not straightforward, because the file layouts must differ from Linux. Android native libraries are usually packaged like
 
 - `lib/armeabi-v7a/libfoo.so`
 - `lib/arm64-v8a/libfoo.so`
@@ -22,18 +45,30 @@ while normal `lv2` packages usually look like:
 - `lib/foo.lv2/foo.ttl`
 - `lib/foo.lv2/foo.so`
 
-Attempt to copy those `lv2` contents under `lib/{abi}` with simple build.gradle script failed. Asking plugin developers to add `copy(from/into)` operation hack (which might still not work) is awkward, so we would rather provide simpler solution - we put `lv2/` contents under `assets`, and put ABI-specific `*.so` files directly under `lib/{abi}`. Loading `*.so` from `assets` subdirectories is not possible either.
+Those `lib/*.lv2/*.so` files cannot be dynamically loaded unlike Linux desktop, so they have to be moved to `lib/*/` directory. Other LV2 manifests are packaged under `assets/lv2` directory. Therefore, the file layout is:
 
 - `assets/foo.lv2/manifest.ttl`
 - `assets/foo.lv2/foo.ttl`
 - `lib/{abi}/foo.so`
 
-The `import-lv2-deps.sh` does this task for `java/aaplv2samples` which is used by `aaphostsample` and `localpluginsample`.
+The `import-lv2-deps.sh` does this task for `aap-mda-lv2`. Similarly, `import-guitarix-deps.sh` does it for `aap-guitarix`.
 
+### AAP Metadata
+
+AAP needs `aap_metadata.xml` in `res/xml`. It can be generated from LV2 manifests in the plugin directory, using `aap-import-lv2-metadata` tool:
+
+```
+$ ./tools/aap-import-lv2-metadata/aap-import-lv2-metadata [lv2path] [res_xml_path]
+```
+
+The way how this tool generates metadata from LV2 manifests is described in depth later.
+
+
+## Implementation details
 
 ### LV2_PATH workarounds
 
-There is another big limitation on Android platform: it is not possible to get list of asset directories in Android, meaning that querying audio plugins based on the filesystem is not doable. All those plugins must be therefore explicitly listed at some manifest.
+There is a big limitation on Android platform: it is not possible to get list of asset directories in Android, meaning that querying audio plugins based on the filesystem is not doable. All those plugins must be therefore explicitly listed at some manifest.
 
 To address this issue, AAP-LV2 plugin service takes a list of LV2 asset paths from `aap_metadata.xml`, which are used for `LV2_PATH` settings. It is taken care by `org.androidaudioplugin.lv2.AudioPluginLV2ServiceExtension` and plugin developers shouldn't have to worry about it, as long as they add the following metadata within `<service>` for AudioPluginService:
 
@@ -55,7 +90,7 @@ We decided to NOT support shorthand metadata notation like
 
 ... because it will make metadata non-queryable to normal Android app developers.
 
-Instead we provide a metadata generator tool `app-import-lv2-metadata` and ask LV2 plugin developers (importers) to describe everything in `aap-metadata.xml`:
+Instead we provide a metadata generator tool `app-import-lv2-metadata` and ask LV2 plugin developers (importers) to describe everything in `aap-metadata.xml`.
 
 ```
 $ ./aap-import-lv2-metadata [lv2path] [res_xml_path]
@@ -101,13 +136,6 @@ The plugin `category` becomes `Instrument` if and only if it is `lv2:InstrumentP
 We don't detect any impedance mismatch between TTL and metadata XML; LV2 backend implementation uses "lilv" which only loads TTL. lilv doesn't assure port description correctness in TTL either (beyond what lv2validate does as a tool, not runtime).
 
 
-### Licensing notice
-
-Note that `mda-lv2` is distributed under the GPLv3 license and you have to
-follow it when distributing or making changes to that part (the LV2 plugin
-samples). This does not apply to other LV2 related bits.
-
-
 
 ## Build Dependencies
 
@@ -145,3 +173,17 @@ The external dependencies are built using cerbero build system. Cerbero is a com
 There are couple of lv2 related source repositories, namely serd and lilv. Their common assumption is that they have access to local files, which is not true about Android. They are forked from the original sources and partly rewritten to get working on Android.
 
 And note that access to assets is not as simple as that to filesystem. It is impossible to enumerate assets at runtime. They have to be explicitly named and given. Therefore there are some plugin loader changes in our lilv fork.
+
+
+## Licensing notice
+
+aap-lv2 codebase is distributed under the MIT license.
+
+LV2 toolkit core parts (serd/sord/sratom/lilv/lv2) are under the ISC license.
+
+`guitarix` and `mda-lv2` are distributed under the GPLv3 license and you 
+have to follow it when distributing or making changes to those parts.
+
+`sfizz` is distributed under the MIT license, but it has dependencies that are under LGPL2.1, Apache License 2.0, and so on. See [the project repository](https://github.com/sfztools/sfizz) for details.
+
+Each of those plugin sets is packaged into one application respectively.
