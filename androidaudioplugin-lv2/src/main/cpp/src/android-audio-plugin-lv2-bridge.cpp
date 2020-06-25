@@ -300,6 +300,7 @@ AndroidAudioPlugin* aap_lv2_plugin_new(
 	statics->atom_port_uri_node = lilv_new_uri (world, LV2_ATOM__AtomPort);
 
     auto allPlugins = lilv_world_get_all_plugins (world);
+    assert(lilv_plugins_size(allPlugins) > 0);
     // FIXME: convert those AAP extensions to LV2 features
     features [0] = &uridFeature;
     features [1] = &logFeature;
@@ -314,7 +315,8 @@ AndroidAudioPlugin* aap_lv2_plugin_new(
     const LilvPlugin *plugin = lilv_plugins_get_by_uri (allPlugins, pluginUriNode);
     lilv_node_free(pluginUriNode);
     assert (plugin);
-	LilvInstance *instance = lilv_plugin_instantiate (plugin, sampleRate, features);
+    assert (lilv_plugin_verify (plugin));
+    LilvInstance *instance = lilv_plugin_instantiate (plugin, sampleRate, features);
     assert (instance);
 
 	// Fixed value list of URID map. If it breaks then saved state will be lost!
