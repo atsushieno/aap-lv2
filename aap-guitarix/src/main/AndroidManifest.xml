@@ -17,6 +17,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity android:name="org.androidaudioplugin.ui.androidx.LocalPluginDetailsActivity" />
         <service android:name="org.androidaudioplugin.AudioPluginService"
             android:label="@string/app_name">
             <intent-filter>
