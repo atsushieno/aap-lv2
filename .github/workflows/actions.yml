@@ -37,11 +37,22 @@ jobs:
       if: success()
       uses: actions/upload-artifact@v1
       with:
-        name: aar_and_apk
         path: ./androidaudioplugin-lv2/build/outputs/aar/androidaudioplugin-lv2-debug.aar
-            ./aap-guitarix/build/outputs/apk/debug/aap-guitarix-debug.apk
-            ./aap-mda-lv2/build/outputs/apk/debug/aap-mda-lv2-debug.apk
-            ./aap-sfizz/build/outputs/apk/debug/aap-sfizz-debug.apk
+    - name: upload artifact
+      if: success()
+      uses: actions/upload-artifact@v1
+      with:
+        path: ./aap-guitarix/build/outputs/apk/debug/aap-guitarix-debug.apk
+    - name: upload artifact
+      if: success()
+      uses: actions/upload-artifact@v1
+      with:
+        path: ./aap-mda-lv2/build/outputs/apk/debug/aap-mda-lv2-debug.apk
+    - name: upload artifact
+      if: success()
+      uses: actions/upload-artifact@v1
+      with:
+        path: ./aap-sfizz/build/outputs/apk/debug/aap-sfizz-debug.apk
   
   osx-build:
     name: build on osx
