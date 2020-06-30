@@ -35,23 +35,27 @@ jobs:
       run: make
     - name: upload artifact
       if: success()
-      uses: actions/upload-artifact@v1
+      uses: actions/upload-artifact@v2
       with:
+        name: androidaudioplugin-lv2-debug.aar
         path: ./androidaudioplugin-lv2/build/outputs/aar/androidaudioplugin-lv2-debug.aar
     - name: upload artifact
       if: success()
-      uses: actions/upload-artifact@v1
+      uses: actions/upload-artifact@v2
       with:
+        name: aap-guitarix-debug.apk
         path: ./aap-guitarix/build/outputs/apk/debug/aap-guitarix-debug.apk
     - name: upload artifact
       if: success()
-      uses: actions/upload-artifact@v1
+      uses: actions/upload-artifact@v2
       with:
+        name: aap-mda-lv2-debug.apk
         path: ./aap-mda-lv2/build/outputs/apk/debug/aap-mda-lv2-debug.apk
     - name: upload artifact
       if: success()
-      uses: actions/upload-artifact@v1
+      uses: actions/upload-artifact@v2
       with:
+        name: aap-sfizz-debug.apk
         path: ./aap-sfizz/build/outputs/apk/debug/aap-sfizz-debug.apk
   
   osx-build:
