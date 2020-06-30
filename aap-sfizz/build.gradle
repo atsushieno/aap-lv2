@@ -45,7 +45,7 @@ android {
     ndkVersion = '21.2.6472646'
 
     packagingOptions {
-        doNotStrip "*/*/*.so" // debuggable!
+        //doNotStrip "*/*/*.so" // debuggable!
     }
 }
 
