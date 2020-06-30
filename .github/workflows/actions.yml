@@ -33,6 +33,15 @@ jobs:
       run: sudo chmod 777 /usr/local/lib/android/sdk/ && mkdir -p /usr/local/lib/android/sdk/ndk
     - name: build
       run: make
+    - name: upload artifact
+      if: success()
+      uses: actions/upload-artifact@v1
+      with:
+        name: aar_and_apk
+        path: ./androidaudioplugin-lv2/build/outputs/aar/androidaudioplugin-lv2-debug.aar
+            ./aap-guitarix/build/outputs/apk/debug/aap-guitarix-debug.apk
+            ./aap-mda-lv2/build/outputs/apk/debug/aap-mda-lv2-debug.apk
+            ./aap-sfizz/build/outputs/apk/debug/aap-sfizz-debug.apk
   
   osx-build:
     name: build on osx
@@ -41,6 +50,12 @@ jobs:
     - name: checkout
       uses: actions/checkout@v1
       with:
+        submodules: recursive
+    - name: checkout
+      uses: actions/checkout@v1
+      with:
+        repository: atsushieno/android-audio-plugin-framework
+        ref: main
         submodules: recursive
     - name: set up JDK 1.8
       uses: actions/setup-java@v1
