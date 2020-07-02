@@ -15,7 +15,7 @@ android {
 
         externalNativeBuild {
             cmake {
-                arguments "-DSFIZZ_JACK=off", "-DSFIZZ_STATIC_LIBSNDFILE=on"
+                arguments "-DSFIZZ_JACK=off", "-DSFIZZ_STATIC_LIBSNDFILE=on", "-DANDROID_STL=c++_shared" // STL is required by LV2 sdks
             }
         }
 

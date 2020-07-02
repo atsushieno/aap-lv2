@@ -18,6 +18,7 @@ android {
 
         externalNativeBuild {
             cmake {
+                arguments "-DANDROID_STL=c++_shared" // required by LV2 sdks
             }
         }
     }
