@@ -175,6 +175,20 @@ There are couple of lv2 related source repositories, namely serd and lilv. Their
 And note that access to assets is not as simple as that to filesystem. It is impossible to enumerate assets at runtime. They have to be explicitly named and given. Therefore there are some plugin loader changes in our lilv fork.
 
 
+## Debugging with LV2 internals
+
+Sometimes having binary-only LV2 SDK bits makes debugging difficult.
+To improve such a situation, we can build all lilv and dependencies together
+within libandroidaudioplugin-lv2.so. 
+This is a patch @atsushieno created for making it possible: https://gist.github.com/atsushieno/969eedaeefb51d99309a3234c2f9b8de
+
+To use it, you will have to:
+
+- create a directory `lilv_direct` in `androidaudioplugin-lv2/src/main/cpp/src`
+- `ln -s /path/to/android-native-audio-builders/serd serd` as well as sord, sratom and lilv.
+- make further changes to `src/abstract_io.c` and `.h` in `serd` and `lilv` to pass build (they have some different set of files, but only one `abstract_io.c` can compile (otherwise duplicate members happen).
+
+
 ## Licensing notice
 
 aap-lv2 codebase is distributed under the MIT license.
