@@ -219,7 +219,7 @@ void normalize_midi_event_for_lv2_forge(LV2_Atom_Forge *forge, LV2_Atom_Sequence
 			lv2_atom_forge_frame_time(forge, ticks * numFrames / ticksPerFrame);
 		} else {
 			ticks += timecode;
-			lv2_atom_forge_beat_time(forge, timecode / timeDivision * 120 / 60);
+			lv2_atom_forge_beat_time(forge, ticks / timeDivision * 120 / 60);
 		}
 		lv2_atom_forge_raw(forge, &midiEventSize, sizeof(int));
 		lv2_atom_forge_raw(forge, &urid_midi_event_type, sizeof(int));
