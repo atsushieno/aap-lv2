@@ -169,7 +169,7 @@ LV2_URID_Map urid_map_feature_data{ &urid_map, urid_map_func };
 LV2_URID urid_atom_sequence_type{0}, urid_midi_event_type{0}, urid_time_frame{0}, urid_time_beats{0};
 
 // returns true if there was at least one MIDI message in src.
-void normalize_midi_event_for_lv2_forge(LV2_Atom_Forge *forge, LV2_Atom_Sequence* seq, int32_t dstCapacity, int timeDivision, void* src) {
+void normalize_midi_event_for_lv2_forge(LV2_Atom_Forge *forge, LV2_Atom_Sequence* seq, int32_t numFrames, int32_t timeDivision, void* src) {
 	assert(src != nullptr);
 	assert(forge != nullptr);
 
@@ -179,6 +179,8 @@ void normalize_midi_event_for_lv2_forge(LV2_Atom_Forge *forge, LV2_Atom_Sequence
 	int32_t srcEnd = *((int*) src + 1) + 8; // offset
 
 	unsigned char running_status = 0;
+
+	uint64_t ticks = 0;
 
 	// This is far from precise. No support for sysex and meta, no run length.
 	while (srcN < srcEnd) {
@@ -211,12 +213,12 @@ void normalize_midi_event_for_lv2_forge(LV2_Atom_Forge *forge, LV2_Atom_Sequence
 			break;
 		}
 
-		if(timeDivision > 0x7FFF) {
-			// should be "fps" part take into consideration here? framesPerSecond is already specified as numFrames.
-			uint8_t ticksPerFrame = timeDivision & 0xFF;
-			lv2_atom_forge_frame_time(forge, timecode / ticksPerFrame);
+		if(timeDivision < 0) {
+			uint8_t ticksPerFrame = -timeDivision;
+            ticks += ((((timecode & 0xFF000000) >> 24) * 60 + ((timecode & 0xFF0000) >> 16)) * 60 + ((timecode & 0xFF00) >> 8) * ticksPerFrame + (timecode & 0xFF));
+			lv2_atom_forge_frame_time(forge, ticks * numFrames / ticksPerFrame);
 		} else {
-			// FIXME: find what kind of semantics LV2 timecode assumes.
+			ticks += timecode;
 			lv2_atom_forge_beat_time(forge, timecode / timeDivision * 120 / 60);
 		}
 		lv2_atom_forge_raw(forge, &midiEventSize, sizeof(int));
@@ -247,7 +249,7 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
 		lv2_atom_forge_set_buffer(forge, (uint8_t*) p.second, buffer->num_frames * sizeof(float));
 		LV2_Atom_Forge_Frame frame;
 		lv2_atom_sequence_clear(p.second);
-		int32_t timeDivision = *((int*) src) & 0xFFFF;
+		int32_t timeDivision = *((int*) src);
 		auto seqRef = lv2_atom_forge_sequence_head(forge, &frame, timeDivision > 0x7FFF ? urid_time_frame : urid_time_beats);
 		auto seq = (LV2_Atom_Sequence*) lv2_atom_forge_deref(forge, seqRef);
 		lv2_atom_forge_pop(forge, &frame);
