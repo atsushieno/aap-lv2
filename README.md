@@ -189,6 +189,10 @@ To use it, you will have to:
 - make further changes to `src/abstract_io.c` and `.h` in `serd` and `lilv` to pass build (they have some different set of files, but only one `abstract_io.c` can compile (otherwise duplicate members happen).
 
 
+## Performance measuring
+
+`android-audio-plugin-lv2-bridge.cpp` has a simple performance measurement aid which can be enabled with JUCEAAP_LOG_PERF variable.
+
 ## Licensing notice
 
 aap-lv2 codebase is distributed under the MIT license.

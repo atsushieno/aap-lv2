@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <dlfcn.h>
 #include <cmath>
+#include <ctime>
 #include <cstring>
 #include <cassert>
 #include <vector>
@@ -21,6 +22,7 @@
 #include <lv2/log/log.h>
 #include <lv2/buf-size/buf-size.h>
 
+#define JUCEAAP_LOG_PERF 0
 
 namespace aaplv2bridge {
 
@@ -235,6 +237,11 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
 {
     // FIXME: use timeoutInNanoseconds?
 
+#if JUCEAAP_LOG_PERF
+    struct timespec timeSpecBegin, timeSpecEnd;
+    clock_gettime(CLOCK_REALTIME, &timeSpecBegin);
+#endif
+
 	auto ctx = (AAPLV2PluginContext*) plugin->plugin_specific;
 	
 	if (buffer != ctx->cached_buffer)
@@ -258,6 +265,12 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
 	}
 
 	lilv_instance_run(ctx->instance, buffer->num_frames);
+
+#if JUCEAAP_LOG_PERF
+    clock_gettime(CLOCK_REALTIME, &timeSpecEnd);
+    long timeDiff = (timeSpecEnd.tv_sec - timeSpecBegin.tv_sec) * 1000000000 + timeSpecEnd.tv_nsec - timeSpecBegin.tv_nsec;
+    aap::aprintf("AAP LV2Bridge Perf: time diff %ld / %ld", timeDiff, timeoutInNanoseconds);
+#endif
 }
 
 void aap_lv2_plugin_deactivate(AndroidAudioPlugin *plugin)
