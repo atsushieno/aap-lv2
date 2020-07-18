@@ -22,15 +22,15 @@ namespace aaplv2 {
 typedef void (*set_io_context_func)(void *);
 
 void *libdl;
-set_io_context_func libserd_set_context = NULL;
-set_io_context_func liblilv_set_context = NULL;
+set_io_context_func libserd_set_context = nullptr;
+set_io_context_func liblilv_set_context = nullptr;
 
 void ensureDLEach(const char *libname, set_io_context_func &context) {
-    if (context == NULL) {
+    if (context == nullptr) {
         libdl = dlopen(libname, RTLD_NOW);
-        assert (libdl != NULL);
+        assert (libdl != nullptr);
         context = (set_io_context_func) dlsym(libdl, "abstract_set_io_context");
-        assert (context != NULL);
+        assert (context != nullptr);
     }
 }
 
@@ -48,7 +48,7 @@ void set_io_context(AAssetManager *am) {
 void cleanup() {
     if (libdl)
         dlclose(libdl);
-    set_io_context(NULL);
+    set_io_context(nullptr);
 }
 }
 

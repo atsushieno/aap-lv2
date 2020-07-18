@@ -27,7 +27,7 @@
 namespace aaplv2bridge {
 
 typedef struct {
-    bool operator()(std::string p1, std::string p2) const { return p1 == p2; }
+    bool operator()(std::string& p1, std::string& p2) const { return p1 == p2; }
 } uricomp;
 
 // WARNING: NEVER EVER use this function and URID feature variable for loading and saving state.
@@ -42,7 +42,7 @@ LV2_URID urid_map_func(LV2_URID_Map_Handle handle, const char *uri) {
     return map->find(s)->second;
 }
 
-int log_vprintf(LV2_Log_Handle handle, LV2_URID type, const char *fmt, va_list ap) {
+int log_vprintf(LV2_Log_Handle, LV2_URID type, const char *fmt, va_list ap) {
     int ret = aap::aprintf("LV2 LOG (%d): ", type);
     ret += aap::aprintf(fmt, ap);
     return ret;
@@ -111,7 +111,7 @@ PORTCHECKER_AND (IS_ATOM_OUT, IS_ATOM_PORT, IS_OUTPUT_PORT)
 
 
 void aap_lv2_plugin_delete(
-        AndroidAudioPluginFactory *pluginFactory,
+        AndroidAudioPluginFactory *,
         AndroidAudioPlugin *plugin) {
     auto l = (AAPLV2PluginContext *) plugin->plugin_specific;
     free(l->dummy_raw_buffer);
@@ -176,7 +176,7 @@ LV2_URID urid_atom_sequence_type{0}, urid_midi_event_type{0}, urid_time_frame{0}
 
 // returns true if there was at least one MIDI message in src.
 void
-normalize_midi_event_for_lv2_forge(LV2_Atom_Forge *forge, LV2_Atom_Sequence *seq, int32_t numFrames,
+normalize_midi_event_for_lv2_forge(LV2_Atom_Forge *forge, LV2_Atom_Sequence *, int32_t numFrames,
                                    int32_t timeDivision, void *src) {
     assert(src != nullptr);
     assert(forge != nullptr);
@@ -194,17 +194,17 @@ normalize_midi_event_for_lv2_forge(LV2_Atom_Forge *forge, LV2_Atom_Sequence *seq
     while (srcN < srcEnd) {
         // MIDI Event message
         // Atom Event header
-        long timecode = 0;
-        int digits = 0;
+        uint64_t timecode = 0;
+        uint digits = 0;
         while (csrc[srcN] >= 0x80 && srcN < srcEnd) // variable length
-            timecode += ((csrc[srcN++] - 0x80) << (7 * digits++));
+            timecode += ((uint32_t) (csrc[srcN++] - 0x80)) << (7 * digits++);
         if (srcN == srcEnd)
             break; // invalid data
         timecode += (csrc[srcN++] << (7 * digits));
 
         uint8_t statusByte = csrc[srcN] >= 0x80 ? csrc[srcN] : running_status;
         running_status = statusByte;
-        uint8_t eventType = statusByte & 0xF0;
+        uint8_t eventType = statusByte & 0xF0u;
         uint32_t midiEventSize = 3;
         int sysexPos = srcN;
         switch (eventType) {
@@ -232,12 +232,12 @@ normalize_midi_event_for_lv2_forge(LV2_Atom_Forge *forge, LV2_Atom_Sequence *seq
 
         if (timeDivision < 0) {
             uint8_t ticksPerFrame = -timeDivision;
-            ticks += ((((timecode & 0xFF000000) >> 24) * 60 + ((timecode & 0xFF0000) >> 16)) * 60 +
-                      ((timecode & 0xFF00) >> 8) * ticksPerFrame + (timecode & 0xFF));
+            ticks += ((((timecode & 0xFF000000u) >> 24u) * 60 + ((timecode & 0xFF0000u) >> 16u)) * 60 +
+                      ((timecode & 0xFF00u) >> 8u) * ticksPerFrame + (timecode & 0xFFu));
             lv2_atom_forge_frame_time(forge, ticks * numFrames / ticksPerFrame);
         } else {
             ticks += timecode;
-            lv2_atom_forge_beat_time(forge, ticks / timeDivision * 120 / 60);
+            lv2_atom_forge_beat_time(forge, (double) ticks / timeDivision * 120 / 60);
         }
         lv2_atom_forge_raw(forge, &midiEventSize, sizeof(int));
         lv2_atom_forge_raw(forge, &urid_midi_event_type, sizeof(int));
@@ -304,12 +304,12 @@ void aap_lv2_plugin_set_state(AndroidAudioPlugin *plugin, AndroidAudioPluginStat
 }
 
 LV2_Feature *features[6];
-LV2_Log_Log logData{NULL, log_printf, log_vprintf};
+LV2_Log_Log logData{nullptr, log_printf, log_vprintf};
 LV2_Feature uridFeature{LV2_URID__map, &urid_map_feature_data};
 LV2_Feature logFeature{LV2_LOG_URI, &logData};
-LV2_Feature bufSizeFeature{LV2_BUF_SIZE_URI, NULL};
-LV2_Feature atomFeature{LV2_ATOM_URI, NULL};
-LV2_Feature timeFeature{LV2_TIME_URI, NULL};
+LV2_Feature bufSizeFeature{LV2_BUF_SIZE_URI, nullptr};
+LV2_Feature atomFeature{LV2_ATOM_URI, nullptr};
+LV2_Feature timeFeature{LV2_TIME_URI, nullptr};
 
 AndroidAudioPlugin *aap_lv2_plugin_new(
         AndroidAudioPluginFactory *pluginFactory,
@@ -329,13 +329,12 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
 
     auto allPlugins = lilv_world_get_all_plugins(world);
     assert(lilv_plugins_size(allPlugins) > 0);
-    // FIXME: convert those AAP extensions to LV2 features
     features[0] = &uridFeature;
     features[1] = &logFeature;
     features[2] = &bufSizeFeature;
     features[3] = &atomFeature;
     features[4] = &timeFeature;
-    features[5] = NULL;
+    features[5] = nullptr;
 
     // LV2 Plugin URI is just LV2 URI prefixed by "lv2".
     assert (!strncmp(pluginUniqueID, "lv2:", strlen("lv2:")));
@@ -378,11 +377,11 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
 
 } // namespace aaplv2bridge
 
-AndroidAudioPluginFactory _aap_lv2_factory{aaplv2bridge::aap_lv2_plugin_new,
+AndroidAudioPluginFactory aap_lv2_factory{aaplv2bridge::aap_lv2_plugin_new,
                                            aaplv2bridge::aap_lv2_plugin_delete};
 
 extern "C" {
 
-AndroidAudioPluginFactory *GetAndroidAudioPluginFactoryLV2Bridge() { return &_aap_lv2_factory; }
+AndroidAudioPluginFactory *GetAndroidAudioPluginFactoryLV2Bridge() { return &aap_lv2_factory; }
 
 } // extern "C"
