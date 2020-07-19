@@ -5,6 +5,7 @@
 #include <ctime>
 #include <cstring>
 #include <cassert>
+#include <memory>
 #include <vector>
 #include <map>
 #include <string>
@@ -18,16 +19,17 @@
 #include <lv2/atom/forge.h>
 #include <lv2/urid/urid.h>
 #include <lv2/midi/midi.h>
-#include <lv2/time/time.h>
+#include <lv2/worker/worker.h>
 #include <lv2/log/log.h>
 #include <lv2/buf-size/buf-size.h>
+#include <lv2/options/options.h>
 
 #define JUCEAAP_LOG_PERF 0
 
 namespace aaplv2bridge {
 
 typedef struct {
-    bool operator()(std::string& p1, std::string& p2) const { return p1 == p2; }
+    bool operator()(std::string &p1, std::string &p2) const { return p1 == p2; }
 } uricomp;
 
 // WARNING: NEVER EVER use this function and URID feature variable for loading and saving state.
@@ -62,7 +64,7 @@ typedef struct {
 class AAPLV2PluginContext {
 public:
     AAPLV2PluginContext(AAPLV2PluginContextStatics *statics, LilvWorld *world,
-                        const LilvPlugin *plugin, LilvInstance *instance)
+                        const LilvPlugin *plugin)
             : statics(statics), world(world), plugin(plugin), instance(instance) {
         midi_atom_forge = (LV2_Atom_Forge *) calloc(1024, 1);
     }
@@ -82,6 +84,7 @@ public:
     int32_t midi_buffer_size = 1024;
     std::map<int32_t, LV2_Atom_Sequence *> midi_atom_buffers{};
     LV2_Atom_Forge *midi_atom_forge;
+    LV2_Worker_Schedule worker_schedule_data{};
 };
 
 #define PORTCHECKER_SINGLE(_name_, _type_) inline bool _name_ (AAPLV2PluginContext *ctx, const LilvPlugin* plugin, const LilvPort* port) { return lilv_port_is_a (plugin, port, ctx->statics->_type_); }
@@ -139,9 +142,10 @@ void resetPorts(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *buffer) {
 
     assert(buffer != nullptr);
 
-    // FIXME: it is quite awkward to reset buffer size to whatever value for audio I/O but
+    // FIXME: <del>it is quite awkward to reset buffer size to whatever value for audio I/O but
     //  there is no any reasonable alternative value to reuse. Maybe something like 0x1000 is enough
-    //  (but what happens if there are MPE-like massive messages?)
+    //  (but what happens if there are MPE-like massive messages?)</del>
+    //  >>> The buffer size could be specified using Buf Size extension, for Atom-specific ports.
     if (ctx->midi_buffer_size < buffer->num_frames) {
         for (auto p : ctx->midi_atom_buffers) {
             free(p.second);
@@ -232,7 +236,8 @@ normalize_midi_event_for_lv2_forge(LV2_Atom_Forge *forge, LV2_Atom_Sequence *, i
 
         if (timeDivision < 0) {
             uint8_t ticksPerFrame = -timeDivision;
-            ticks += ((((timecode & 0xFF000000u) >> 24u) * 60 + ((timecode & 0xFF0000u) >> 16u)) * 60 +
+            ticks += ((((timecode & 0xFF000000u) >> 24u) * 60 + ((timecode & 0xFF0000u) >> 16u)) *
+                      60 +
                       ((timecode & 0xFF00u) >> 8u) * ticksPerFrame + (timecode & 0xFFu));
             lv2_atom_forge_frame_time(forge, ticks * numFrames / ticksPerFrame);
         } else {
@@ -264,6 +269,11 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
 
     // convert AAP MIDI messages into Atom Sequence of MidiEvent.
     for (auto p : ctx->midi_atom_buffers) {
+        if (IS_OUTPUT_PORT(ctx, ctx->plugin, lilv_plugin_get_port_by_index(ctx->plugin, p.first))) {
+            // For output ports. it must indicate the size of atom buffer.
+            p.second->atom.size = buffer->num_frames * sizeof(float) - sizeof(LV2_Atom);
+            continue;
+        }
         void *src = buffer->buffers[p.first];
         auto uridMap = &urid_map_feature_data;
         auto forge = ctx->midi_atom_forge;
@@ -296,20 +306,17 @@ void aap_lv2_plugin_deactivate(AndroidAudioPlugin *plugin) {
 }
 
 void aap_lv2_plugin_get_state(AndroidAudioPlugin *plugin, AndroidAudioPluginState *result) {
-    /* FIXME: implement */
+    assert(false); // FIXME: implement
 }
 
 void aap_lv2_plugin_set_state(AndroidAudioPlugin *plugin, AndroidAudioPluginState *input) {
-    /* FIXME: implement */
+    assert(false); // FIXME: implement
 }
 
-LV2_Feature *features[6];
-LV2_Log_Log logData{nullptr, log_printf, log_vprintf};
-LV2_Feature uridFeature{LV2_URID__map, &urid_map_feature_data};
-LV2_Feature logFeature{LV2_LOG_URI, &logData};
-LV2_Feature bufSizeFeature{LV2_BUF_SIZE_URI, nullptr};
-LV2_Feature atomFeature{LV2_ATOM_URI, nullptr};
-LV2_Feature timeFeature{LV2_TIME_URI, nullptr};
+LV2_Worker_Status
+aap_lv2_schedule_work(LV2_Worker_Schedule_Handle handle, uint32_t size, const void *data) {
+    assert(false); // FIXME: implement
+}
 
 AndroidAudioPlugin *aap_lv2_plugin_new(
         AndroidAudioPluginFactory *pluginFactory,
@@ -329,12 +336,6 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
 
     auto allPlugins = lilv_world_get_all_plugins(world);
     assert(lilv_plugins_size(allPlugins) > 0);
-    features[0] = &uridFeature;
-    features[1] = &logFeature;
-    features[2] = &bufSizeFeature;
-    features[3] = &atomFeature;
-    features[4] = &timeFeature;
-    features[5] = nullptr;
 
     // LV2 Plugin URI is just LV2 URI prefixed by "lv2".
     assert (!strncmp(pluginUniqueID, "lv2:", strlen("lv2:")));
@@ -343,8 +344,46 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
     lilv_node_free(pluginUriNode);
     assert (plugin);
     assert (lilv_plugin_verify(plugin));
+
+    auto ctx = std::make_unique<AAPLV2PluginContext>(statics, world, plugin);
+
+    ctx->worker_schedule_data.handle = ctx.get();
+    ctx->worker_schedule_data.schedule_work = aap_lv2_schedule_work;
+
+    LV2_Feature uridFeature{LV2_URID__map, &urid_map_feature_data};
+    LV2_Log_Log logData{nullptr, log_printf, log_vprintf};
+    LV2_Feature logFeature{LV2_LOG__log, &logData};
+    LV2_Feature bufSizeFeature{LV2_BUF_SIZE__boundedBlockLength, nullptr};
+    LV2_Options_Option options[3];
+
+    const int minBlockLengthValue = 128;
+    const int maxBlockLengthValue = 8192; // FIXME: adjust those variables at prepare() step.
+    options[0] = LV2_Options_Option{LV2_OPTIONS_INSTANCE,
+                                    0,
+                                    urid_map_func(&urid_map, LV2_BUF_SIZE__minBlockLength),
+                                    sizeof(int),
+                                    urid_map_func(&urid_map, LV2_ATOM__Int),
+                                    &minBlockLengthValue};
+    options[1] = LV2_Options_Option{LV2_OPTIONS_INSTANCE,
+                                    0,
+                                    urid_map_func(&urid_map, LV2_BUF_SIZE__maxBlockLength),
+                                    sizeof(int),
+                                    urid_map_func(&urid_map, LV2_ATOM__Int),
+                                    &maxBlockLengthValue};
+    options[2] = LV2_Options_Option{LV2_OPTIONS_BLANK, 0, 0, 0, 0};
+    LV2_Feature optionsFeature{LV2_OPTIONS__options, options};
+    LV2_Feature workerFeature{LV2_WORKER__schedule, &ctx->worker_schedule_data};
+    LV2_Feature *features[6];
+    features[0] = &uridFeature;
+    features[1] = &logFeature;
+    features[2] = &workerFeature;
+    features[3] = &bufSizeFeature;
+    features[4] = &optionsFeature;
+    features[5] = nullptr;
+
     LilvInstance *instance = lilv_plugin_instantiate(plugin, sampleRate, features);
     assert (instance);
+    ctx->instance = instance;
 
     // Fixed value list of URID map. If it breaks then saved state will be lost!
     if (!urid_atom_sequence_type) {
@@ -355,17 +394,15 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
         urid_time_frame = map->map(map->handle, LV2_ATOM__frameTime);
     }
 
-    auto ctx = new AAPLV2PluginContext(statics, world, plugin, instance);
-
     int nPorts = lilv_plugin_get_num_ports(plugin);
     for (int i = 0; i < nPorts; i++) {
-        if (IS_ATOM_PORT(ctx, plugin, lilv_plugin_get_port_by_index(plugin, i))) {
+        if (IS_ATOM_PORT(ctx.get(), plugin, lilv_plugin_get_port_by_index(plugin, i))) {
             ctx->midi_atom_buffers[i] = (LV2_Atom_Sequence *) calloc(ctx->midi_buffer_size, 1);
         }
     }
 
     return new AndroidAudioPlugin{
-            ctx,
+            ctx.release(),
             aap_lv2_plugin_prepare,
             aap_lv2_plugin_activate,
             aap_lv2_plugin_process,
@@ -378,7 +415,7 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
 } // namespace aaplv2bridge
 
 AndroidAudioPluginFactory aap_lv2_factory{aaplv2bridge::aap_lv2_plugin_new,
-                                           aaplv2bridge::aap_lv2_plugin_delete};
+                                          aaplv2bridge::aap_lv2_plugin_delete};
 
 extern "C" {
 
