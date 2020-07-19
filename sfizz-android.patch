@@ -22,3 +22,29 @@ index 16c805b..2af1a95 100644
      target_include_directories(sfizz-sndfile INTERFACE ${SNDFILE_INCLUDE_DIRS})
      if (SFIZZ_STATIC_LIBSNDFILE)
          target_link_libraries(sfizz-sndfile INTERFACE ${SNDFILE_STATIC_LIBRARIES})
+diff --git a/lv2/sfizz.c b/lv2/sfizz.c
+index 56b7f0b..280d2ad 100644
+--- a/lv2/sfizz.c
++++ b/lv2/sfizz.c
+@@ -84,6 +84,8 @@
+ 
+ #define DEFAULT_SCALA_FILE  "Resources/DefaultScale.scl"
+ #define DEFAULT_SFZ_FILE    "Resources/DefaultInstrument.sfz"
++//#define DEFAULT_SFZ_FILE "/mnt/sdcard/Download/sfz/UI_Standard_Guitar/Programs/03-Standard Guitar VSOP.sfz"
++#define DEFAULT_SFZ_FILE "/mnt/sdcard/Download/sfz/Rhodes/rhodes.sfz"
+ // This assumes that the longest path is the default sfz file; if not, change it
+ #define MAX_BUNDLE_PATH_SIZE (MAX_PATH_SIZE - sizeof(DEFAULT_SFZ_FILE))
+ 
+diff --git a/src/sfizz/Config.h b/src/sfizz/Config.h
+index db286b0..79e10a9 100644
+--- a/src/sfizz/Config.h
++++ b/src/sfizz/Config.h
+@@ -28,7 +28,7 @@ namespace config {
+     constexpr float defaultSampleRate { 48000 };
+     constexpr float maxSampleRate { 192000 };
+     constexpr int defaultSamplesPerBlock { 1024 };
+-    constexpr int maxBlockSize { 8192 };
++    constexpr int maxBlockSize { 1048576 };
+     constexpr int bufferPoolSize { 6 };
+     constexpr int stereoBufferPoolSize { 4 };
+     constexpr int indexBufferPoolSize { 2 };
