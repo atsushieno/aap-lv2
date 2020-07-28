@@ -78,6 +78,51 @@ typedef struct {
     bool                        threaded;   ///< Run work in another thread
 } JalvWorker;
 
+class AAPLv2PluginFeatures {
+public:
+    inline void set(LV2_Feature& feature, const char* uri, void* data) {
+        feature.URI = uri;
+        feature.data = data;
+    }
+
+    std::map<std::string, LV2_URID, uricomp> urid_map{};
+    LV2_URID_Map urid_map_feature_data{&urid_map, urid_map_func};
+    LV2_Worker_Schedule worker_schedule_data{};
+    LV2_Worker_Schedule state_worker_schedule_data{};
+    LV2_Log_Log logData{nullptr, log_printf, log_vprintf};
+
+    const int minBlockLengthValue = 128;
+    const int maxBlockLengthValue = 8192;
+    LV2_Options_Option minBlockLengthOption{LV2_OPTIONS_INSTANCE,
+                0,
+                urid_map_func(&urid_map, LV2_BUF_SIZE__minBlockLength),
+                sizeof(int),
+                urid_map_func(&urid_map, LV2_ATOM__Int),
+                &minBlockLengthValue};
+    LV2_Options_Option maxBlockLengthOption{LV2_OPTIONS_INSTANCE,
+                0,
+                urid_map_func(&urid_map, LV2_BUF_SIZE__maxBlockLength),
+                sizeof(int),
+                urid_map_func(&urid_map, LV2_ATOM__Int),
+                &maxBlockLengthValue};
+
+    LV2_Feature uridFeature{LV2_URID__map, &urid_map_feature_data};
+    LV2_Feature logFeature{LV2_LOG__log, &logData};
+    LV2_Feature bufSizeFeature{LV2_BUF_SIZE__boundedBlockLength, nullptr};
+    LV2_Feature optionsFeature{LV2_OPTIONS__options, nullptr};
+    LV2_Feature workerFeature{LV2_WORKER__schedule, &worker_schedule_data};
+    LV2_Feature stateWorkerFeature{LV2_WORKER__schedule, &state_worker_schedule_data};
+    LV2_Feature threadSafeRestoreFeature{LV2_STATE__threadSafeRestore, nullptr};
+};
+
+struct AAPLV2URIDs {
+    LV2_URID urid_atom_sequence_type{0},
+        urid_midi_event_type{0},
+        urid_time_frame{0},
+        urid_time_beats{0},
+        urid_worker_interface{0};
+};
+
 class AAPLV2PluginContext {
 public:
     AAPLV2PluginContext(AAPLV2PluginContextStatics *statics, LilvWorld *world,
@@ -93,6 +138,8 @@ public:
     }
 
     AAPLV2PluginContextStatics *statics;
+    AAPLv2PluginFeatures features;
+    AAPLV2URIDs urids;
     LilvWorld *world;
     const LilvPlugin *plugin;
     LilvInstance *instance;
@@ -102,8 +149,6 @@ public:
     std::map<int32_t, LV2_Atom_Sequence *> midi_atom_buffers{};
     LV2_Atom_Forge *midi_atom_forge;
 
-    LV2_Worker_Schedule worker_schedule_data{};
-    LV2_Worker_Schedule state_worker_schedule_data{};
     // from jalv codebase
     JalvWorker         worker;         ///< Worker thread implementation
     JalvWorker         state_worker;   ///< Synchronous worker for state restore
@@ -336,15 +381,9 @@ void aap_lv2_plugin_activate(AndroidAudioPlugin *plugin) {
     lilv_instance_activate(l->instance);
 }
 
-// FIXME: move them into AAPLV2PluginContext
-std::map<std::string, LV2_URID, uricomp> urid_map{};
-LV2_URID_Map urid_map_feature_data{&urid_map, urid_map_func};
-LV2_URID urid_atom_sequence_type{0}, urid_midi_event_type{0}, urid_time_frame{0}, urid_time_beats{
-        0}, urid_work_interface{0};
-
 // returns true if there was at least one MIDI message in src.
 void
-normalize_midi_event_for_lv2_forge(LV2_Atom_Forge *forge, LV2_Atom_Sequence *, int32_t numFrames,
+normalize_midi_event_for_lv2_forge(AAPLV2PluginContext* ctx, LV2_Atom_Forge *forge, LV2_Atom_Sequence *, int32_t numFrames,
                                    int32_t timeDivision, void *src) {
     assert(src != nullptr);
     assert(forge != nullptr);
@@ -409,7 +448,7 @@ normalize_midi_event_for_lv2_forge(LV2_Atom_Forge *forge, LV2_Atom_Sequence *, i
             lv2_atom_forge_beat_time(forge, (double) ticks / timeDivision * 120 / 60);
         }
         lv2_atom_forge_raw(forge, &midiEventSize, sizeof(int));
-        lv2_atom_forge_raw(forge, &urid_midi_event_type, sizeof(int));
+        lv2_atom_forge_raw(forge, &ctx->urids.urid_midi_event_type, sizeof(int));
         lv2_atom_forge_raw(forge, csrc + srcN, midiEventSize);
         lv2_atom_forge_pad(forge, midiEventSize);
         srcN += midiEventSize;
@@ -447,7 +486,7 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
             continue;
         }
         void *src = buffer->buffers[p.first];
-        auto uridMap = &urid_map_feature_data;
+        auto uridMap = &ctx->features.urid_map_feature_data;
         auto forge = ctx->midi_atom_forge;
         lv2_atom_forge_init(forge, uridMap);
         lv2_atom_forge_set_buffer(forge, (uint8_t *) p.second, buffer->num_frames * sizeof(float));
@@ -455,11 +494,11 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
         lv2_atom_sequence_clear(p.second);
         int32_t timeDivision = *((int *) src);
         auto seqRef = lv2_atom_forge_sequence_head(forge, &frame,
-                                                   timeDivision > 0x7FFF ? urid_time_frame
-                                                                         : urid_time_beats);
+                                                   timeDivision > 0x7FFF ? ctx->urids.urid_time_frame
+                                                                         : ctx->urids.urid_time_beats);
         auto seq = (LV2_Atom_Sequence *) lv2_atom_forge_deref(forge, seqRef);
         lv2_atom_forge_pop(forge, &frame);
-        normalize_midi_event_for_lv2_forge(forge, seq, buffer->num_frames, timeDivision, src);
+        normalize_midi_event_for_lv2_forge(ctx, forge, seq, buffer->num_frames, timeDivision, src);
         seq->atom.size = forge->offset - sizeof(LV2_Atom);
     }
 
@@ -524,46 +563,30 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
     ctx->worker.ctx = ctx.get();
     ctx->state_worker.ctx = ctx.get();
 
-    ctx->worker_schedule_data.handle = &ctx->worker;
-    ctx->worker_schedule_data.schedule_work = aap_lv2_schedule_work;
-    ctx->state_worker_schedule_data.handle = &ctx->state_worker;
-    ctx->state_worker_schedule_data.schedule_work = aap_lv2_schedule_work;
+    ctx->features.worker_schedule_data.handle = &ctx->worker;
+    ctx->features.worker_schedule_data.schedule_work = aap_lv2_schedule_work;
+    ctx->features.state_worker_schedule_data.handle = &ctx->state_worker;
+    ctx->features.state_worker_schedule_data.schedule_work = aap_lv2_schedule_work;
 
-    LV2_Feature uridFeature{LV2_URID__map, &urid_map_feature_data};
-    LV2_Log_Log logData{nullptr, log_printf, log_vprintf};
-    LV2_Feature logFeature{LV2_LOG__log, &logData};
-    LV2_Feature bufSizeFeature{LV2_BUF_SIZE__boundedBlockLength, nullptr};
     LV2_Options_Option options[3];
 
-    const int minBlockLengthValue = 128;
-    const int maxBlockLengthValue = 8192; // FIXME: adjust those variables at prepare() step.
-    options[0] = LV2_Options_Option{LV2_OPTIONS_INSTANCE,
-                                    0,
-                                    urid_map_func(&urid_map, LV2_BUF_SIZE__minBlockLength),
-                                    sizeof(int),
-                                    urid_map_func(&urid_map, LV2_ATOM__Int),
-                                    &minBlockLengthValue};
-    options[1] = LV2_Options_Option{LV2_OPTIONS_INSTANCE,
-                                    0,
-                                    urid_map_func(&urid_map, LV2_BUF_SIZE__maxBlockLength),
-                                    sizeof(int),
-                                    urid_map_func(&urid_map, LV2_ATOM__Int),
-                                    &maxBlockLengthValue};
+    // FIXME: adjust those variables at prepare() step.
+    options[0] = ctx->features.minBlockLengthOption;
+    options[1] = ctx->features.maxBlockLengthOption;
     options[2] = LV2_Options_Option{LV2_OPTIONS_BLANK, 0, 0, 0, 0};
-    LV2_Feature optionsFeature{LV2_OPTIONS__options, options};
-    LV2_Feature workerFeature{LV2_WORKER__schedule, &ctx->worker_schedule_data};
-    LV2_Feature stateWorkerFeature{LV2_WORKER__schedule, &ctx->state_worker_schedule_data};
-    LV2_Feature threadSafeRestoreFeature{LV2_STATE__threadSafeRestore, nullptr};
+    ctx->features.optionsFeature.data = &options;
 
-    LV2_Feature *features[8];
-    features[0] = &uridFeature;
-    features[1] = &logFeature;
-    features[2] = &workerFeature;
-    features[3] = &stateWorkerFeature;
-    features[4] = &bufSizeFeature;
-    features[5] = &optionsFeature;
-    features[6] = &threadSafeRestoreFeature;
-    features[7] = nullptr;
+    LV2_Feature* features[] = {
+            &ctx->features.uridFeature,
+            &ctx->features.logFeature,
+            &ctx->features.bufSizeFeature,
+            &ctx->features.optionsFeature,
+            &ctx->features.threadSafeRestoreFeature,
+            &ctx->features.workerFeature,
+            // FIXME: enable this
+            //&ctx->features.stateWorkerFeature,
+            nullptr
+    };
 
     // for jalv worker
     assert(!zix_sem_init(&ctx->worker.sem, 0));
@@ -572,13 +595,14 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
     assert (instance);
     ctx->instance = instance;
 
+    auto map = &ctx->features.urid_map_feature_data;
     // Fixed value list of URID map. If it breaks then saved state will be lost!
-    if (!urid_atom_sequence_type) {
-        auto map = (LV2_URID_Map *) uridFeature.data;
-        urid_atom_sequence_type = map->map(map->handle, LV2_ATOM__Sequence);
-        urid_midi_event_type = map->map(map->handle, LV2_MIDI__MidiEvent);
-        urid_time_beats = map->map(map->handle, LV2_ATOM__beatTime);
-        urid_time_frame = map->map(map->handle, LV2_ATOM__frameTime);
+    if (!ctx->urids.urid_atom_sequence_type) {
+        ctx->urids.urid_atom_sequence_type = map->map(map->handle, LV2_ATOM__Sequence);
+        ctx->urids.urid_midi_event_type = map->map(map->handle, LV2_MIDI__MidiEvent);
+        ctx->urids.urid_time_beats = map->map(map->handle, LV2_ATOM__beatTime);
+        ctx->urids.urid_time_frame = map->map(map->handle, LV2_ATOM__frameTime);
+        ctx->urids.urid_worker_interface = map->map(map->handle, LV2_WORKER__interface);
     }
 
     int nPorts = lilv_plugin_get_num_ports(plugin);
