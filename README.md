@@ -16,13 +16,20 @@ Right now this repository is supposed to be checked out in the same directory as
 `make` should take care of the builds.
 
 
+## Limitations
+
+LV2 Dynamic Manifest feature expects that the hosting environment has access to writable temporary directory. It is wrong assumption and LV2 specification has to remove any reference to `FILE*` in the public API. It is not supported in AAP.
+
+LV2 State `makePath` feature is problematic for the same reason.
+
+
 ## Importing LV2 plugins
 
 There are couple of steps to import existing LV2 plugsin into AAP world:
 
 - Build plugin binaries for Android ABIs
 - Convert LV2 resources to Android assets
-- Generate `aap_metadata.xml`
+- Generate `aap_metadata.xml` (or create it manually)
 
 ### building plugin binaries for Android ABIs
 
@@ -32,7 +39,7 @@ For LV2, mda-lv2, and guitarix, the `make` step lets it download from the releas
 
 ### directory structure conversion
 
-AAP-LV2 packaging is not straightforward, because the file layouts must differ from Linux. Android native libraries are usually packaged like
+AAP-LV2 packaging is not straightforward, because the file layouts is differrent from that on Linux. Android native libraries are usually packaged like:
 
 - `lib/armeabi-v7a/libfoo.so`
 - `lib/arm64-v8a/libfoo.so`
@@ -82,15 +89,7 @@ To address this issue, AAP-LV2 plugin service takes a list of LV2 asset paths fr
 
 ### converting LV2 metadata to AAP metadata
 
-We decided to NOT support shorthand metadata notation like
-
-```
-<plugin backend='LV2' assets='lv2/eg-amp.lv2' product='eg-amp.lv2' />
-```
-
-... because it will make metadata non-queryable to normal Android app developers.
-
-Instead we provide a metadata generator tool `app-import-lv2-metadata` and ask LV2 plugin developers (importers) to describe everything in `aap-metadata.xml`.
+We provide a metadata generator tool `app-import-lv2-metadata` and ask LV2 plugin developers (importers) to describe everything in `aap-metadata.xml`.
 
 ```
 $ ./aap-import-lv2-metadata [lv2path] [res_xml_path]
@@ -135,28 +134,31 @@ The plugin `category` becomes `Instrument` if and only if it is `lv2:InstrumentP
 
 We don't detect any impedance mismatch between TTL and metadata XML; LV2 backend implementation uses "lilv" which only loads TTL. lilv doesn't assure port description correctness in TTL either (beyond what lv2validate does as a tool, not runtime).
 
+(We decided to NOT support shorthand metadata notation like `<plugin backend='LV2' assets='lv2/eg-amp.lv2' product='eg-amp.lv2' />` in `aap_metadata.xml` because it will make metadata non-queryable to normal Android app developers. Also, we shouldn't need Service code running to just let it send back metadata to host only for querying. It should be self-explanatory.)
 
 
 ## Build Dependencies
 
 ### Platform features and modules
 
-TODO: move those descriptions to `android-native-audio-builders` repo.
+NOTE: the actual native library builds have moved to `android-native-audio-builders` repo.
 
-android-audio-plugin-framework repo has some dependencies, which are either platform-level-specific, or external. Note that this is NOT about build script.
+android-audio-plugin-framework repo has some dependencies, which are either platform-level-specific, or external.
 
 External software projects:
 
-- lv2 category
-  - libsndfile
-    - libogg
-    - libvorbis
-    - flac
+- lv2 dependencies
   - lilv (private fork)
     - serd (private fork)
     - sord (private fork)
     - sratom
+- sfizz dependencies
   - cerbero (as the builder, private fork)
+  - libsndfile
+    - libogg
+    - libvorbis
+    - flac
+
 - vst3 category (TODO)
   - vst3sdk (no particular dependency found, for non-GUI parts)
 
@@ -193,6 +195,29 @@ To use it, you will have to:
 - go back to topdir, and `rm -rf androidaudioplugin-lv2/src/main/jniLibs/`
 
 Also note that depending on the build approaches, the gradle build scripts may not reach the tasks for copying lv2 resources (e.g. `sfizz.lv2`). If they are missing in the apk, then it will fail to retrieve TTL files at instantiation time.
+
+
+## Debugging with mda-lv2 internals
+
+Similar to the previous section on lilv internals, it is also possible to build and debug mda-lv2 with sources. However, the required changes are different - especially in that it needs metadata changes.
+
+- create symbolic from `android-native-audio-builders/mda-lv2` to (some path like) `aap-mda-lv2/src/mda_direct`
+- add the sources to `CMakeLists.txt`, but you can build only one plugin because mda-lv2 iterates source builds in its waf land. `lvz/*.cpp` are required with any plugin.
+- You will have to define some variables to compile sources. (see below)
+- add `lvz` and `src` directories to `target_include_directories`.
+- in `assets/lv2/mda-lv2/manifest.ttl`, find your target plugin to change and replace its `.so` file with `libaap-mda-lv2.so` (the one you are going to build). lilv will load the specified library.
+
+The additional definitions you need:
+
+```
+        -DPLUGIN_CLASS=mdaEPiano
+        -DURI_PREFIX="http://drobilla.net/plugins/mda/"
+        -DPLUGIN_URI_SUFFIX="EPiano"
+        -DPLUGIN_HEADER="mdaEPiano.h"
+```
+
+[An example patch](https://gist.github.com/atsushieno/a233bc7a527c02ef562b4151647ff698) which once worked is provided for reference (the directory structure is not strictly following the list above, but you would get the ideas).
+
 
 ## Performance measuring
 
