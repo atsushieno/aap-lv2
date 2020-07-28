@@ -13,6 +13,10 @@
 #include "aap/logging.h"
 #include "aap/android-audio-plugin.h"
 
+#include "zix/sem.h"
+#include "zix/ring.h"
+#include "zix/thread.h"
+
 #include <lilv/lilv.h>
 #include <lv2/atom/atom.h>
 #include <lv2/atom/util.h>
@@ -23,6 +27,7 @@
 #include <lv2/log/log.h>
 #include <lv2/buf-size/buf-size.h>
 #include <lv2/options/options.h>
+#include <lv2/state/state.h>
 
 #define JUCEAAP_LOG_PERF 0
 
@@ -57,9 +62,21 @@ int log_printf(LV2_Log_Handle handle, LV2_URID type, const char *fmt, ...) {
 }
 
 typedef struct {
-    LilvNode *audio_port_uri_node, *control_port_uri_node, *atom_port_uri_node, *input_port_uri_node, *output_port_uri_node;
+    LilvNode *audio_port_uri_node, *control_port_uri_node, *atom_port_uri_node, *input_port_uri_node, *output_port_uri_node, *work_interface_uri_node;
 
 } AAPLV2PluginContextStatics;
+
+// imported from jalv
+typedef struct {
+    void*                       ctx;       ///< Pointer back to AAPLV2PluginContext
+    ZixRing*                    requests{nullptr};   ///< Requests to the worker
+    ZixRing*                    responses{nullptr};  ///< Responses from the worker
+    void*                       response;   ///< Worker response buffer
+    ZixSem                      sem;        ///< Worker semaphore
+    ZixThread                   thread;     ///< Worker thread
+    const LV2_Worker_Interface* iface;      ///< Plugin worker interface
+    bool                        threaded;   ///< Run work in another thread
+} JalvWorker;
 
 class AAPLV2PluginContext {
 public:
@@ -84,7 +101,15 @@ public:
     int32_t midi_buffer_size = 1024;
     std::map<int32_t, LV2_Atom_Sequence *> midi_atom_buffers{};
     LV2_Atom_Forge *midi_atom_forge;
+
     LV2_Worker_Schedule worker_schedule_data{};
+    LV2_Worker_Schedule state_worker_schedule_data{};
+    // from jalv codebase
+    JalvWorker         worker;         ///< Worker thread implementation
+    JalvWorker         state_worker;   ///< Synchronous worker for state restore
+    ZixSem             work_lock;      ///< Lock for plugin work() method
+    bool               safe_restore;   ///< Plugin restore() is thread-safe
+    bool terminate{false};
 };
 
 #define PORTCHECKER_SINGLE(_name_, _type_) inline bool _name_ (AAPLV2PluginContext *ctx, const LilvPlugin* plugin, const LilvPort* port) { return lilv_port_is_a (plugin, port, ctx->statics->_type_); }
@@ -112,10 +137,147 @@ PORTCHECKER_AND (IS_ATOM_IN, IS_ATOM_PORT, IS_INPUT_PORT)
 
 PORTCHECKER_AND (IS_ATOM_OUT, IS_ATOM_PORT, IS_OUTPUT_PORT)
 
+// The code below (jalv_xxx) is imported from jalv and then modified.
+
+
+static LV2_Worker_Status
+jalv_worker_respond(LV2_Worker_Respond_Handle handle,
+                    uint32_t                  size,
+                    const void*               data)
+{
+    JalvWorker* worker = (JalvWorker*)handle;
+    zix_ring_write(worker->responses, (const char*)&size, sizeof(size));
+    zix_ring_write(worker->responses, (const char*)data, size);
+    return LV2_WORKER_SUCCESS;
+}
+
+static void*
+worker_func(void* data)
+{
+    JalvWorker* worker = (JalvWorker*)data;
+    auto       ctx   = (AAPLV2PluginContext*) worker->ctx;
+    void*       buf    = NULL;
+    while (true) {
+        zix_sem_wait(&worker->sem);
+        if (ctx->terminate) {
+            break;
+        }
+
+        uint32_t size = 0;
+        zix_ring_read(worker->requests, (char*)&size, sizeof(size));
+
+        if (!(buf = realloc(buf, size))) {
+            fprintf(stderr, "error: realloc() failed\n");
+            free(buf);
+            return NULL;
+        }
+
+        zix_ring_read(worker->requests, (char*)buf, size);
+
+        zix_sem_wait(&ctx->work_lock);
+        worker->iface->work(
+                ctx->instance->lv2_handle, jalv_worker_respond, worker, size, buf);
+        zix_sem_post(&ctx->work_lock);
+    }
+
+    free(buf);
+    return NULL;
+}
+
+void
+jalv_worker_init(AAPLV2PluginContext*,
+JalvWorker*                 worker,
+const LV2_Worker_Interface* iface,
+bool                        threaded) {
+    worker->iface = iface;
+    worker->threaded = threaded;
+    if (threaded) {
+        zix_thread_create(&worker->thread, 4096, worker_func, worker);
+        worker->requests = zix_ring_new(4096);
+        zix_ring_mlock(worker->requests);
+    }
+    worker->responses = zix_ring_new(4096);
+    worker->response = malloc(4096);
+    zix_ring_mlock(worker->responses);
+}
+
+void
+jalv_worker_finish(JalvWorker* worker)
+{
+    if (worker->threaded) {
+        zix_sem_post(&worker->sem);
+        zix_thread_join(worker->thread, NULL);
+    }
+}
+
+void
+jalv_worker_destroy(JalvWorker* worker)
+{
+    if (worker->requests) {
+        if (worker->threaded) {
+            zix_ring_free(worker->requests);
+        }
+        zix_ring_free(worker->responses);
+        free(worker->response);
+    }
+}
+
+LV2_Worker_Status
+jalv_worker_schedule(LV2_Worker_Schedule_Handle handle,
+                     uint32_t                   size,
+                     const void*                data)
+{
+    JalvWorker* worker = (JalvWorker*)handle;
+    auto       ctx   = (AAPLV2PluginContext*) worker->ctx;
+    if (worker->threaded) {
+        // Schedule a request to be executed by the worker thread
+        zix_ring_write(worker->requests, (const char*)&size, sizeof(size));
+        zix_ring_write(worker->requests, (const char*)data, size);
+        zix_sem_post(&worker->sem);
+    } else {
+        // Execute work immediately in this thread
+        zix_sem_wait(&ctx->work_lock);
+        worker->iface->work(
+                ctx->instance->lv2_handle, jalv_worker_respond, worker, size, data);
+        zix_sem_post(&ctx->work_lock);
+    }
+    return LV2_WORKER_SUCCESS;
+}
+
+void
+jalv_worker_emit_responses(JalvWorker* worker, LilvInstance* instance)
+{
+    if (worker->responses) {
+        uint32_t read_space = zix_ring_read_space(worker->responses);
+        while (read_space) {
+            uint32_t size = 0;
+            zix_ring_read(worker->responses, (char*)&size, sizeof(size));
+
+            zix_ring_read(worker->responses, (char*)worker->response, size);
+
+            worker->iface->work_response(
+                    instance->lv2_handle, size, worker->response);
+
+            read_space -= sizeof(size) + size;
+        }
+    }
+}
+
+// end of jalv worker code.
 
 void aap_lv2_plugin_delete(
         AndroidAudioPluginFactory *,
         AndroidAudioPlugin *plugin) {
+    auto ctx = (AAPLV2PluginContext *) plugin->plugin_specific;
+
+    ctx->terminate = true;
+
+    // Terminate the worker
+    jalv_worker_finish(&ctx->worker);
+
+    // Destroy the worker
+    jalv_worker_destroy(&ctx->worker);
+
     auto l = (AAPLV2PluginContext *) plugin->plugin_specific;
     free(l->dummy_raw_buffer);
     lilv_instance_free(l->instance);
@@ -124,6 +286,7 @@ void aap_lv2_plugin_delete(
     lilv_node_free(l->statics->atom_port_uri_node);
     lilv_node_free(l->statics->input_port_uri_node);
     lilv_node_free(l->statics->output_port_uri_node);
+    lilv_node_free(l->statics->work_interface_uri_node);
     delete l->statics;
     lilv_world_free(l->world);
     delete l;
@@ -173,10 +336,11 @@ void aap_lv2_plugin_activate(AndroidAudioPlugin *plugin) {
     lilv_instance_activate(l->instance);
 }
 
+// FIXME: move them into AAPLV2PluginContext
 std::map<std::string, LV2_URID, uricomp> urid_map{};
 LV2_URID_Map urid_map_feature_data{&urid_map, urid_map_func};
 LV2_URID urid_atom_sequence_type{0}, urid_midi_event_type{0}, urid_time_frame{0}, urid_time_beats{
-        0};
+        0}, urid_work_interface{0};
 
 // returns true if there was at least one MIDI message in src.
 void
@@ -267,6 +431,14 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
     if (buffer != ctx->cached_buffer)
         resetPorts(plugin, buffer);
 
+    /* Process any worker replies. */
+    jalv_worker_emit_responses(&ctx->state_worker, ctx->instance);
+    jalv_worker_emit_responses(&ctx->worker, ctx->instance);
+
+    /* Notify the plugin the run() cycle is finished */
+    if (ctx->worker.iface && ctx->worker.iface->end_run)
+        ctx->worker.iface->end_run(ctx->instance->lv2_handle);
+
     // convert AAP MIDI messages into Atom Sequence of MidiEvent.
     for (auto p : ctx->midi_atom_buffers) {
         if (IS_OUTPUT_PORT(ctx, ctx->plugin, lilv_plugin_get_port_by_index(ctx->plugin, p.first))) {
@@ -315,7 +487,7 @@ void aap_lv2_plugin_set_state(AndroidAudioPlugin *plugin, AndroidAudioPluginStat
 
 LV2_Worker_Status
 aap_lv2_schedule_work(LV2_Worker_Schedule_Handle handle, uint32_t size, const void *data) {
-    assert(false); // FIXME: implement
+    return jalv_worker_schedule(handle, size, data);
 }
 
 AndroidAudioPlugin *aap_lv2_plugin_new(
@@ -333,6 +505,7 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
     statics->input_port_uri_node = lilv_new_uri(world, LV2_CORE__InputPort);
     statics->output_port_uri_node = lilv_new_uri(world, LV2_CORE__OutputPort);
     statics->atom_port_uri_node = lilv_new_uri(world, LV2_ATOM__AtomPort);
+    statics->work_interface_uri_node = lilv_new_uri(world, LV2_WORKER__interface);
 
     auto allPlugins = lilv_world_get_all_plugins(world);
     assert(lilv_plugins_size(allPlugins) > 0);
@@ -347,8 +520,14 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
 
     auto ctx = std::make_unique<AAPLV2PluginContext>(statics, world, plugin);
 
-    ctx->worker_schedule_data.handle = ctx.get();
+    assert(!zix_sem_init(&ctx->work_lock, 1));
+    ctx->worker.ctx = ctx.get();
+    ctx->state_worker.ctx = ctx.get();
+
+    ctx->worker_schedule_data.handle = &ctx->worker;
     ctx->worker_schedule_data.schedule_work = aap_lv2_schedule_work;
+    ctx->state_worker_schedule_data.handle = &ctx->state_worker;
+    ctx->state_worker_schedule_data.schedule_work = aap_lv2_schedule_work;
 
     LV2_Feature uridFeature{LV2_URID__map, &urid_map_feature_data};
     LV2_Log_Log logData{nullptr, log_printf, log_vprintf};
@@ -373,13 +552,21 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
     options[2] = LV2_Options_Option{LV2_OPTIONS_BLANK, 0, 0, 0, 0};
     LV2_Feature optionsFeature{LV2_OPTIONS__options, options};
     LV2_Feature workerFeature{LV2_WORKER__schedule, &ctx->worker_schedule_data};
-    LV2_Feature *features[6];
+    LV2_Feature stateWorkerFeature{LV2_WORKER__schedule, &ctx->state_worker_schedule_data};
+    LV2_Feature threadSafeRestoreFeature{LV2_STATE__threadSafeRestore, nullptr};
+
+    LV2_Feature *features[8];
     features[0] = &uridFeature;
     features[1] = &logFeature;
     features[2] = &workerFeature;
-    features[3] = &bufSizeFeature;
-    features[4] = &optionsFeature;
-    features[5] = nullptr;
+    features[3] = &stateWorkerFeature;
+    features[4] = &bufSizeFeature;
+    features[5] = &optionsFeature;
+    features[6] = &threadSafeRestoreFeature;
+    features[7] = nullptr;
+
+    // for jalv worker
+    assert(!zix_sem_init(&ctx->worker.sem, 0));
 
     LilvInstance *instance = lilv_plugin_instantiate(plugin, sampleRate, features);
     assert (instance);
@@ -398,6 +585,26 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
     for (int i = 0; i < nPorts; i++) {
         if (IS_ATOM_PORT(ctx.get(), plugin, lilv_plugin_get_port_by_index(plugin, i))) {
             ctx->midi_atom_buffers[i] = (LV2_Atom_Sequence *) calloc(ctx->midi_buffer_size, 1);
+        }
+    }
+
+    /* Check for thread-safe state restore() method. */
+    LilvNode* state_threadSafeRestore = lilv_new_uri(
+            ctx->world, LV2_STATE__threadSafeRestore);
+    if (lilv_plugin_has_feature(ctx->plugin, state_threadSafeRestore)) {
+        ctx->safe_restore = true;
+    }
+    lilv_node_free(state_threadSafeRestore);
+
+    // for jalv worker
+    // Create workers if necessary
+    if (lilv_plugin_has_extension_data(ctx->plugin, ctx->statics->work_interface_uri_node)) {
+        const LV2_Worker_Interface* iface = (const LV2_Worker_Interface*)
+                lilv_instance_get_extension_data(ctx->instance, LV2_WORKER__interface);
+
+        jalv_worker_init(ctx.get(), &ctx->worker, iface, true);
+        if (ctx->safe_restore) {
+            jalv_worker_init(ctx.get(), &ctx->state_worker, iface, false);
         }
     }
 

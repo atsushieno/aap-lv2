@@ -27,6 +27,7 @@ dependencies/dist/stamp: android-lv2-binaries.zip
 	mkdir -p dependencies
 	unzip android-lv2-binaries -d dependencies
 	./rewrite-pkg-config-paths.sh
+	ln -s `pwd`/dependencies/dist androidaudioplugin-lv2/src/main/cpp/symlinked-dist
 	touch dependencies/dist/stamp
 
 android-lv2-binaries.zip:

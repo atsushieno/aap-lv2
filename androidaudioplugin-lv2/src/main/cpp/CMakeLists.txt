@@ -6,8 +6,11 @@ cmake_minimum_required(VERSION 3.5.1)
 
 get_filename_component (AAPDIR "${CMAKE_CURRENT_LIST_DIR}/../../../../../android-audio-plugin-framework" ABSOLUTE)
 
+# Android Studio is stupid. It tries to index your home directory if it references ancestor directories.
+# https://issuetracker.google.com/issues/159719671
+# Now it references descendant directory via symlink instead.
 if (ANDROID)
-get_filename_component (LV2_DEP_DIST "${CMAKE_CURRENT_LIST_DIR}/../../../../dependencies/dist/${CMAKE_ANDROID_ARCH_ABI}" ABSOLUTE)
+get_filename_component (LV2_DEP_DIST "${CMAKE_CURRENT_LIST_DIR}/symlinked-dist/${CMAKE_ANDROID_ARCH_ABI}" ABSOLUTE)
 else (ANDROID)
 get_filename_component (LV2_DEP_DIST "${AAPDIR}/dependencies/lv2-desktop/dist" ABSOLUTE)
 endif (ANDROID)
@@ -29,6 +32,7 @@ pkg_search_module ( LILV REQUIRED lilv-0>=0.24.0 )
 set (androidaudioplugin-lv2_INCLUDES
 		"${AAPDIR}/native/plugin-api/include"
 		"${AAPDIR}/native/androidaudioplugin/core/include"
+		"src"
 		${SERD_INCLUDE_DIRS}
 		${SORD_INCLUDE_DIRS}
 		${SRATOM_INCLUDE_DIRS}
@@ -62,6 +66,7 @@ set (androidaudioplugin-lv2_LIBS ${androidaudioplugin-lv2_LIBS} lilv-0 androidau
 set (androidaudioplugin-lv2_SOURCES
 		"src/android-audio-plugin-lv2-bridge.cpp"
 		"src/AudioPluginLV2LocalHost_native.cpp"
+		"src/zix/ring.cpp"
 		)
 
 # Specifies a library name, specifies whether the library is STATIC or
