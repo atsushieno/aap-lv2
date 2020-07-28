@@ -229,6 +229,8 @@ aap-lv2 codebase is distributed under the MIT license.
 
 LV2 toolkit core parts (serd/sord/sratom/lilv/lv2) are under the ISC license.
 
+There are some sources copied from [jalv](https://gitlab.com/drobilla/jalv) project mentioned in androidaudioplugin-lv2 sources as well as those files under `zix` directory, and they are distributed under the ISC license.
+
 `guitarix` and `mda-lv2` are distributed under the GPLv3 license and you 
 have to follow it when distributing or making changes to those parts.
 
