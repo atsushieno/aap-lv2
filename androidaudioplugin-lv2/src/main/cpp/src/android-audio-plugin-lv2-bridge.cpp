@@ -74,17 +74,12 @@ typedef struct {
     void*                       response;   ///< Worker response buffer
     ZixSem                      sem;        ///< Worker semaphore
     ZixThread                   thread;     ///< Worker thread
-    const LV2_Worker_Interface* iface;      ///< Plugin worker interface
+    const LV2_Worker_Interface* iface{nullptr};      ///< Plugin worker interface
     bool                        threaded;   ///< Run work in another thread
 } JalvWorker;
 
 class AAPLv2PluginFeatures {
 public:
-    inline void set(LV2_Feature& feature, const char* uri, void* data) {
-        feature.URI = uri;
-        feature.data = data;
-    }
-
     std::map<std::string, LV2_URID, uricomp> urid_map{};
     LV2_URID_Map urid_map_feature_data{&urid_map, urid_map_func};
     LV2_Worker_Schedule worker_schedule_data{};
