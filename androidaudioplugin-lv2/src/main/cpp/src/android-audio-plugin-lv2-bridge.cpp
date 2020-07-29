@@ -50,15 +50,15 @@ LV2_URID urid_map_func(LV2_URID_Map_Handle handle, const char *uri) {
 }
 
 int log_vprintf(LV2_Log_Handle, LV2_URID type, const char *fmt, va_list ap) {
-    int ret = aap::aprintf("LV2 LOG (%d): ", type);
-    ret += aap::aprintf(fmt, ap);
-    return ret;
+    return aap::avprintf(fmt, ap);
 }
 
 int log_printf(LV2_Log_Handle handle, LV2_URID type, const char *fmt, ...) {
     va_list ap;
     va_start (ap, fmt);
-    return log_vprintf(handle, type, fmt, ap);
+    int ret = log_vprintf(handle, type, fmt, ap);
+    va_end (ap);
+    return ret;
 }
 
 typedef struct {
