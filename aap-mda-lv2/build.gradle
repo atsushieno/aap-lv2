@@ -5,7 +5,7 @@ plugins {
 
 android {
     compileSdkVersion 30
-    buildToolsVersion "30.0.0"
+    buildToolsVersion "29.0.3"
     defaultConfig {
         applicationId "org.androidaudioplugin.aap_mda_lv2"
         minSdkVersion 29
