@@ -21,40 +21,41 @@ dependencies/sfizz/patch.stamp:
 
 ## downloads
 
-get-lv2-deps: dependencies/dist/stamp
+get-lv2-deps: dependencies/lv2-deps/dist/stamp
 
-dependencies/dist/stamp: android-lv2-binaries.zip
-	mkdir -p dependencies
-	unzip android-lv2-binaries -d dependencies
-	./rewrite-pkg-config-paths.sh
-	ln -s `pwd`/dependencies/dist androidaudioplugin-lv2/src/main/cpp/symlinked-dist
-	touch dependencies/dist/stamp
+dependencies/lv2-deps/dist/stamp: android-lv2-binaries.zip
+	mkdir -p dependencies/lv2-deps
+	unzip android-lv2-binaries -d dependencies/lv2-deps/
+	./rewrite-pkg-config-paths.sh lv2-deps
+	ln -s `pwd`/dependencies/lv2-deps/dist androidaudioplugin-lv2/src/main/cpp/symlinked-dist
+	touch dependencies/lv2-deps/dist/stamp
 
 android-lv2-binaries.zip:
 	wget https://github.com/atsushieno/android-native-audio-builders/releases/download/r4/android-lv2-binaries.zip
 
-get-sfizz-deps: dependencies/sfizz-deps/stamp
+get-sfizz-deps: dependencies/sfizz-deps/dist/stamp
 
-dependencies/sfizz-deps/stamp: android-libsndfile-binaries.zip
+dependencies/sfizz-deps/dist/stamp: android-libsndfile-binaries.zip
 	unzip android-libsndfile-binaries.zip -d dependencies/sfizz-deps/
+	./rewrite-pkg-config-paths.sh sfizz-deps
 	for a in $(ABIS_SIMPLE) ; do \
 		mkdir -p aap-sfizz/src/main/jniLibs/$$a ; \
 		cp -R dependencies/sfizz-deps/dist/$$a/lib/*.so aap-sfizz/src/main/jniLibs/$$a ; \
 	done
-	touch dependencies/sfizz-deps/stamp
+	touch dependencies/sfizz-deps/dist/stamp
 
 android-libsndfile-binaries.zip:
 	wget https://github.com/atsushieno/android-native-audio-builders/releases/download/r6/android-libsndfile-binaries.zip
 
-get-guitarix-deps: dependencies/guitarix-deps/stamp
+get-guitarix-deps: dependencies/guitarix-deps/dist/stamp
 
-dependencies/guitarix-deps/stamp: aap-guitarix-binaries.zip
+dependencies/guitarix-deps/dist/stamp: aap-guitarix-binaries.zip
 	unzip aap-guitarix-binaries.zip -d dependencies/guitarix-deps/
 	for a in $(ABIS_SIMPLE) ; do \
 		mkdir -p aap-guitarix/src/main/jniLibs/$$a ; \
 		cp -R dependencies/guitarix-deps/dist/$$a/lib/*.so aap-guitarix/src/main/jniLibs/$$a ; \
 	done
-	touch dependencies/guitarix-deps/stamp
+	touch dependencies/guitarix-deps/dist/stamp
 
 aap-guitarix-binaries.zip:
 	wget https://github.com/atsushieno/android-native-audio-builders/releases/download/r6/aap-guitarix-binaries.zip
