@@ -75,5 +75,5 @@ build-lv2-importer:
 	cd tools/aap-import-lv2-metadata && rm -rf build && mkdir -p build && cd build && cmake -DCMAKE_BUILD_TYPE=Debug .. && make
 
 build-java:
-	ANDROID_SDK_ROOT=$(ANDROID_SDK_ROOT) ./gradlew assembleDebug
+	ANDROID_SDK_ROOT=$(ANDROID_SDK_ROOT) ./gradlew build
  
