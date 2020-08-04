@@ -13,6 +13,7 @@
 #include "aap/logging.h"
 #include "aap/android-audio-plugin.h"
 
+#include "symap.h"
 #include "zix/sem.h"
 #include "zix/ring.h"
 #include "zix/thread.h"
@@ -32,22 +33,6 @@
 #define JUCEAAP_LOG_PERF 0
 
 namespace aaplv2bridge {
-
-typedef struct {
-    bool operator()(std::string &p1, std::string &p2) const { return p1 == p2; }
-} uricomp;
-
-// WARNING: NEVER EVER use this function and URID feature variable for loading and saving state.
-// State must be preserved in stable semantics, and this function and internal map are never
-// stable. The value of the mapped integers change every time we make changes to this code.
-LV2_URID urid_map_func(LV2_URID_Map_Handle handle, const char *uri) {
-    auto map = static_cast<std::map<std::string, LV2_URID> *> (handle);
-    std::string s{uri};
-    auto it = map->find(s);
-    if (it == map->end())
-        map->emplace(s, map->size() + 1000);
-    return map->find(s)->second;
-}
 
 int log_vprintf(LV2_Log_Handle, LV2_URID type, const char *fmt, va_list ap) {
     return aap::avprintf(fmt, ap);
@@ -80,26 +65,16 @@ typedef struct {
 
 class AAPLv2PluginFeatures {
 public:
-    std::map<std::string, LV2_URID, uricomp> urid_map{};
-    LV2_URID_Map urid_map_feature_data{&urid_map, urid_map_func};
+    LV2_URID_Map urid_map_feature_data;
+    LV2_URID_Unmap urid_unmap_feature_data;
     LV2_Worker_Schedule worker_schedule_data{};
     LV2_Worker_Schedule state_worker_schedule_data{};
     LV2_Log_Log logData{nullptr, log_printf, log_vprintf};
 
     const int minBlockLengthValue = 128;
     const int maxBlockLengthValue = 8192;
-    LV2_Options_Option minBlockLengthOption{LV2_OPTIONS_INSTANCE,
-                0,
-                urid_map_func(&urid_map, LV2_BUF_SIZE__minBlockLength),
-                sizeof(int),
-                urid_map_func(&urid_map, LV2_ATOM__Int),
-                &minBlockLengthValue};
-    LV2_Options_Option maxBlockLengthOption{LV2_OPTIONS_INSTANCE,
-                0,
-                urid_map_func(&urid_map, LV2_BUF_SIZE__maxBlockLength),
-                sizeof(int),
-                urid_map_func(&urid_map, LV2_ATOM__Int),
-                &maxBlockLengthValue};
+    LV2_Options_Option minBlockLengthOption;
+    LV2_Options_Option maxBlockLengthOption;
 
     LV2_Feature uridFeature{LV2_URID__map, &urid_map_feature_data};
     LV2_Feature logFeature{LV2_LOG__log, &logData};
@@ -124,12 +99,14 @@ public:
                         const LilvPlugin *plugin)
             : statics(statics), world(world), plugin(plugin), instance(instance) {
         midi_atom_forge = (LV2_Atom_Forge *) calloc(1024, 1);
+        symap = symap_new();
     }
 
     ~AAPLV2PluginContext() {
         for (auto p : midi_atom_buffers)
             free(p.second);
         free(midi_atom_forge);
+        symap_free(symap);
     }
 
     AAPLV2PluginContextStatics *statics;
@@ -145,12 +122,36 @@ public:
     LV2_Atom_Forge *midi_atom_forge;
 
     // from jalv codebase
+    Symap*             symap;          ///< URI map
+    ZixSem             symap_lock;     ///< Lock for URI map
     JalvWorker         worker;         ///< Worker thread implementation
     JalvWorker         state_worker;   ///< Synchronous worker for state restore
     ZixSem             work_lock;      ///< Lock for plugin work() method
     bool               safe_restore;   ///< Plugin restore() is thread-safe
     bool terminate{false};
 };
+
+static LV2_URID
+map_uri(LV2_URID_Map_Handle handle,
+        const char*         uri)
+{
+    auto ctx = (AAPLV2PluginContext*)handle;
+    zix_sem_wait(&ctx->symap_lock);
+    const LV2_URID id = symap_map(ctx->symap, uri);
+    zix_sem_post(&ctx->symap_lock);
+    return id;
+}
+
+static const char*
+unmap_uri(LV2_URID_Unmap_Handle handle,
+          LV2_URID              urid)
+{
+    auto ctx = (AAPLV2PluginContext*)handle;
+    zix_sem_wait(&ctx->symap_lock);
+    const char* uri = symap_unmap(ctx->symap, urid);
+    zix_sem_post(&ctx->symap_lock);
+    return uri;
+}
 
 #define PORTCHECKER_SINGLE(_name_, _type_) inline bool _name_ (AAPLV2PluginContext *ctx, const LilvPlugin* plugin, const LilvPort* port) { return lilv_port_is_a (plugin, port, ctx->statics->_type_); }
 #define PORTCHECKER_AND(_name_, _cond1_, _cond2_) inline bool _name_ (AAPLV2PluginContext *ctx, const LilvPlugin* plugin, const LilvPort* port) { return _cond1_ (ctx, plugin, port) && _cond2_ (ctx, plugin, port); }
@@ -554,6 +555,11 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
 
     auto ctx = std::make_unique<AAPLV2PluginContext>(statics, world, plugin);
 
+    ctx->features.urid_map_feature_data.handle = ctx.get();
+    ctx->features.urid_map_feature_data.map = map_uri;
+    ctx->features.urid_unmap_feature_data.handle = ctx.get();
+    ctx->features.urid_unmap_feature_data.unmap = unmap_uri;
+
     assert(!zix_sem_init(&ctx->work_lock, 1));
     ctx->worker.ctx = ctx.get();
     ctx->state_worker.ctx = ctx.get();
@@ -562,6 +568,19 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
     ctx->features.worker_schedule_data.schedule_work = aap_lv2_schedule_work;
     ctx->features.state_worker_schedule_data.handle = &ctx->state_worker;
     ctx->features.state_worker_schedule_data.schedule_work = aap_lv2_schedule_work;
+
+    ctx->features.minBlockLengthOption = {LV2_OPTIONS_INSTANCE,
+        0,
+        map_uri(ctx.get(), LV2_BUF_SIZE__minBlockLength),
+        sizeof(int),
+        map_uri(ctx.get(), LV2_ATOM__Int),
+        &ctx->features.minBlockLengthValue};
+    ctx->features.maxBlockLengthOption = {LV2_OPTIONS_INSTANCE,
+                                          0,
+                                          map_uri(ctx.get(), LV2_BUF_SIZE__maxBlockLength),
+                                          sizeof(int),
+                                          map_uri(ctx.get(), LV2_ATOM__Int),
+                                          &ctx->features.maxBlockLengthValue};
 
     LV2_Options_Option options[3];
 

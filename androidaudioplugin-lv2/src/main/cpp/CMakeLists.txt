@@ -66,6 +66,7 @@ set (androidaudioplugin-lv2_LIBS ${androidaudioplugin-lv2_LIBS} lilv-0 androidau
 set (androidaudioplugin-lv2_SOURCES
 		"src/android-audio-plugin-lv2-bridge.cpp"
 		"src/AudioPluginLV2LocalHost_native.cpp"
+		"src/symap.cpp"
 		"src/zix/ring.cpp"
 		)
 
