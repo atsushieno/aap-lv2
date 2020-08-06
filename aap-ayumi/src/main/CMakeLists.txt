@@ -14,7 +14,7 @@ else (ANDROID)
 endif (ANDROID)
 
 set (ayumi-lv2_INCLUDES
-        ${CMAKE_CURRENT_LIST_DIR}/../../../dependencies/dist/${CMAKE_ANDROID_ARCH_ABI}/include
+        ${CMAKE_CURRENT_LIST_DIR}/../../../dependencies/lv2-deps/dist/${CMAKE_ANDROID_ARCH_ABI}/include
         )
 
 set (ayumi-lv2_SOURCES
