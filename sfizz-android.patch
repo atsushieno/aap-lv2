@@ -7,7 +7,7 @@ index 16c805b..2af1a95 100644
      target_link_libraries(sfizz-sndfile INTERFACE sndfile-static)
  else()
 +    if (ANDROID)
-+        get_filename_component (LV2_DEP_DIST "${CMAKE_CURRENT_LIST_DIR}}/../../dist/${CMAKE_ANDROID_ARCH_ABI}" ABSOLUTE)
++        get_filename_component (LV2_DEP_DIST "${CMAKE_CURRENT_LIST_DIR}}/../../lv2-deps/dist/${CMAKE_ANDROID_ARCH_ABI}" ABSOLUTE)
 +        set (ENV{PKG_CONFIG_PATH} "${LV2_DEP_DIST}/lib/pkgconfig/")
 +        get_filename_component (SFIZZ_DEPS_DIST "${CMAKE_CURRENT_LIST_DIR}}/../../sfizz-deps/dist/${CMAKE_ANDROID_ARCH_ABI}" ABSOLUTE)
 +        set (ENV{PKG_CONFIG_PATH} "${SFIZZ_DEPS_DIST}/lib/pkgconfig/")
