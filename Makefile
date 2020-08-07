@@ -63,7 +63,6 @@ aap-guitarix-binaries.zip:
 # Run importers
 
 import-lv2-deps: build-lv2-importer
-	mkdir -p java/samples/aaphostsample/src/main/res/xml
 	./import-lv2-deps.sh
 
 import-guitarix-deps: build-lv2-importer
