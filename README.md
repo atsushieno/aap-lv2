@@ -30,6 +30,7 @@ There are couple of steps to import existing LV2 plugsin into AAP world:
 - Build plugin binaries for Android ABIs
 - Convert LV2 resources to Android assets
 - Generate `aap_metadata.xml` (or create it manually)
+- Remove any local file dependencies in the code (rewrite to refer to assets etc.)
 
 ### building plugin binaries for Android ABIs
 
@@ -69,6 +70,13 @@ $ ./tools/aap-import-lv2-metadata/aap-import-lv2-metadata [lv2path] [res_xml_pat
 ```
 
 The way how this tool generates metadata from LV2 manifests is described in depth later.
+
+### Rewrite local file dependencies in code
+
+Unlike desktop LV2 plugins, we cannot really depend on local filesystems
+including temporary files. 
+
+There are couple of LV2 features such as LV2 Dynamic Manifest and state:makePaththat the specification itself assumes local filesystems, and they will not work as specified.
 
 
 ## Implementation details
