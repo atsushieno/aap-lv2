@@ -28,7 +28,7 @@ jobs:
         java-version: 1.8
     - name: apt install
       run: |
-        echo y | sudo apt-get install pkg-config cmake ninja doxygen liblilv-dev
+        echo y | sudo apt-get install pkg-config cmake ninja-build doxygen liblilv-dev
     - name: stupid NDK setup workaround for GitHub Actions
       run: sudo chmod 777 /usr/local/lib/android/sdk/ && mkdir -p /usr/local/lib/android/sdk/ndk
     - name: create local.properties
