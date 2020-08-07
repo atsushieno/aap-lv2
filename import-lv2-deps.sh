@@ -12,10 +12,10 @@ do
     echo "ABI: $abi"
     # Copy native libs for each ABI
     mkdir -p androidaudioplugin-lv2/src/main/jniLibs/$abi
-    cp -R dependencies/dist/$abi/lib/*.so androidaudioplugin-lv2/src/main/jniLibs/$abi/
+    cp -R dependencies/lv2-deps/dist/$abi/lib/*.so androidaudioplugin-lv2/src/main/jniLibs/$abi/
     # And then copy native libs of LV2 plugins for each ABI.
     mkdir -p aap-mda-lv2/src/main/jniLibs/$abi
-    cp -R dependencies/dist/$abi/lib/lv2/*/*.so aap-mda-lv2/src/main/jniLibs/$abi/
+    cp -R dependencies/lv2-deps/dist/$abi/lib/lv2/*/*.so aap-mda-lv2/src/main/jniLibs/$abi/
 done
 
 # Copy LV2 metadata files etc.
@@ -26,7 +26,7 @@ done
 # NOT name a specific plugin.
 #
 mkdir -p aap-mda-lv2/src/main/assets/lv2
-cp -R dependencies/dist/x86/lib/lv2/mda.lv2 aap-mda-lv2/src/main/assets/lv2/
+cp -R dependencies/lv2-deps/dist/x86/lib/lv2/mda.lv2 aap-mda-lv2/src/main/assets/lv2/
 # ... except for *.so files. They are stored under jniLibs.
 rm aap-mda-lv2/src/main/assets/lv2/*/*.so
 
