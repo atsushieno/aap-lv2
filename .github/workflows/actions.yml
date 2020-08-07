@@ -31,6 +31,8 @@ jobs:
         echo y | sudo apt-get install pkg-config cmake doxygen liblilv-dev
     - name: stupid NDK setup workaround for GitHub Actions
       run: sudo chmod 777 /usr/local/lib/android/sdk/ && mkdir -p /usr/local/lib/android/sdk/ndk
+    - name: create local.properties
+      run: echo "cmake.dir=/usr" > local.properties
     - name: build
       run: make
   
@@ -55,6 +57,8 @@ jobs:
     - name: install deps
       run: |
         brew install doxygen pkg-config cmake lilv
+    - name: create local.properties
+      run: echo "cmake.dir=/usr/local" > local.properties
     - name: build
       run: make
       env:
