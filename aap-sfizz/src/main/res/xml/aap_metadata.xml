@@ -12,6 +12,7 @@
       <port direction="input" default="60.000000" minimum="0.000000" maximum="127.000000" content="other" name="Scala root key" />
       <port direction="input" default="440.000000" minimum="300.000000" maximum="500.000000" content="other" name="Tuning frequency" />
       <port direction="input" default="0.000000" minimum="0.000000" maximum="1.000000" content="other" name="Stretched tuning" />
+      <port direction="output" default="0.000000" minimum="0.000000" maximum="256.000000" content="other" name="Active voices" />
     </ports>
   </plugin>
 </plugins>
