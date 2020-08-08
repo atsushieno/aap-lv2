@@ -22,10 +22,10 @@ index 16c805b..3e3ea32 100644
      if (SFIZZ_STATIC_LIBSNDFILE)
          target_link_libraries(sfizz-sndfile INTERFACE ${SNDFILE_STATIC_LIBRARIES})
 diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
-index 8de6d8e..b2e10f0 100644
+index 6c69423..297f3ce 100644
 --- a/src/CMakeLists.txt
 +++ b/src/CMakeLists.txt
-@@ -166,6 +166,13 @@ target_include_directories (sfizz_parser PUBLIC sfizz)
+@@ -184,6 +184,13 @@ target_include_directories (sfizz_parser PUBLIC sfizz)
  target_include_directories (sfizz_parser PUBLIC external)
  target_link_libraries (sfizz_parser PUBLIC absl::strings PRIVATE absl::flat_hash_map)
  
@@ -39,7 +39,7 @@ index 8de6d8e..b2e10f0 100644
  # Sfizz static library
  add_library(sfizz_static STATIC)
  target_sources(sfizz_static PRIVATE
-@@ -174,6 +181,11 @@ target_include_directories (sfizz_static PUBLIC .)
+@@ -192,6 +199,11 @@ target_include_directories (sfizz_static PUBLIC .)
  target_include_directories (sfizz_static PUBLIC external)
  target_link_libraries (sfizz_static PUBLIC absl::strings absl::span)
  target_link_libraries (sfizz_static PRIVATE sfizz_parser absl::flat_hash_map Threads::Threads sfizz-sndfile sfizz-pugixml sfizz-spline sfizz-tunings sfizz-kissfft sfizz-cpuid sfizz-atomic)
@@ -51,7 +51,7 @@ index 8de6d8e..b2e10f0 100644
  set_target_properties (sfizz_static PROPERTIES OUTPUT_NAME sfizz PUBLIC_HEADER "sfizz.h;sfizz.hpp")
  if (WIN32)
      target_compile_definitions (sfizz_static PRIVATE _USE_MATH_DEFINES)
-@@ -212,6 +224,11 @@ if (SFIZZ_SHARED)
+@@ -230,6 +242,11 @@ if (SFIZZ_SHARED)
      target_include_directories (sfizz_shared PRIVATE .)
      target_include_directories (sfizz_shared PRIVATE external)
      target_link_libraries (sfizz_shared PRIVATE absl::strings absl::span sfizz_parser absl::flat_hash_map Threads::Threads sfizz-sndfile sfizz-pugixml sfizz-spline sfizz-tunings sfizz-kissfft sfizz-cpuid sfizz-atomic)
@@ -64,7 +64,7 @@ index 8de6d8e..b2e10f0 100644
          target_compile_definitions (sfizz_shared PRIVATE _USE_MATH_DEFINES)
      endif()
 diff --git a/src/sfizz/Config.h b/src/sfizz/Config.h
-index db286b0..afd7e19 100644
+index 03f7f37..1fd03ae 100644
 --- a/src/sfizz/Config.h
 +++ b/src/sfizz/Config.h
 @@ -28,7 +28,7 @@ namespace config {
@@ -77,7 +77,7 @@ index db286b0..afd7e19 100644
      constexpr int stereoBufferPoolSize { 4 };
      constexpr int indexBufferPoolSize { 2 };
 diff --git a/src/sfizz/parser/Parser.cpp b/src/sfizz/parser/Parser.cpp
-index c846e58..cd2189e 100644
+index 071bc1e..0544b0c 100644
 --- a/src/sfizz/parser/Parser.cpp
 +++ b/src/sfizz/parser/Parser.cpp
 @@ -90,6 +90,18 @@ void Parser::includeNewFile(const fs::path& path, std::unique_ptr<Reader> reader
