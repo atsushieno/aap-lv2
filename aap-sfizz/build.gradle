@@ -1,7 +1,5 @@
-plugins {
-    id 'com.android.application'
-    id 'kotlin-android'
-}
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
 
 android {
     compileSdkVersion 30
@@ -43,6 +41,10 @@ android {
         }
     }
     ndkVersion = '21.2.6472646'
+
+    aaptOptions {
+        noCompress 'wav'
+    }
 
     packagingOptions {
         //doNotStrip "*/*/*.so" // debuggable!
