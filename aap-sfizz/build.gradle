@@ -1,4 +1,4 @@
-apply plugin: 'com.android.library'
+apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 
 android {
@@ -13,7 +13,7 @@ android {
 
         externalNativeBuild {
             cmake {
-                arguments "-DSFIZZ_JACK=off", "-DSFIZZ_RENDER=off", "-DSFIZZ_SHARED=off", "-DSFIZZ_STATIC_LIBSNDFILE=on"
+                arguments "-DENABLE_LTO=off", "-DSFIZZ_JACK=off", "-DSFIZZ_RENDER=off", "-DSFIZZ_SHARED=off", "-DSFIZZ_STATIC_LIBSNDFILE=on"
             }
         }
 
