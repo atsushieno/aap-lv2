@@ -6,6 +6,7 @@ all: build-all
 build-all: \
 	get-lv2-deps \
 	import-lv2-deps \
+	get-fluidsynth-deps \
 	get-sfizz-deps \
 	patch-sfizz \
 	get-guitarix-deps \
@@ -32,6 +33,16 @@ dependencies/lv2-deps/dist/stamp: android-lv2-binaries.zip
 
 android-lv2-binaries.zip:
 	wget https://github.com/atsushieno/android-native-audio-builders/releases/download/r4/android-lv2-binaries.zip
+
+get-fluidsynth-deps: dependencies/fluidsynth-deps/dist/stamp
+
+dependencies/fluidsynth-deps/dist/stamp: android-fluidsynth-dist.zip
+	unzip android-fluidsynth-dist.zip -d dependencies/fluidsynth-deps
+	ln -s `pwd`/dependencies/fluidsynth-deps/dist aap-fluidsynth/src/main/jniLibs
+	touch dependencies/fluidsynth-deps/dist/stamp
+
+android-fluidsynth-dist.zip:
+	wget https://387-95304991-gh.circle-artifacts.com/0/android-dist.zip -O android-fluidsynth-dist.zip
 
 get-sfizz-deps: dependencies/sfizz-deps/dist/stamp
 

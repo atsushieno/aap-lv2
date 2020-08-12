@@ -244,4 +244,8 @@ have to follow it when distributing or making changes to those parts.
 
 `sfizz` is distributed under the MIT license, but it has dependencies that are under LGPL2.1, Apache License 2.0, and so on. See [the project repository](https://github.com/sfztools/sfizz) for details.
 
+`fluidsynth` is distributed under LGPL v2.1 license.
+
+`ayumi-lv2` and `ayumi` are distributed under the MIT license.
+
 Each of those plugin sets is packaged into one application respectively.
