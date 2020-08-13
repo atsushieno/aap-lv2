@@ -64,7 +64,6 @@ LV2_Handle fluidsynth_lv2_instantiate(
     auto assetManager = aap::get_android_asset_manager(env);
     handle->asset_sfloader = new_fluid_android_asset_sfloader(settings, assetManager);
     fluid_synth_add_sfloader(synth, handle->asset_sfloader);
-    //Java_fluidsynth_androidextensions_NativeHandler_setAssetManagerContext()
 
     const char* defaultSoundfonts[] DEFAULT_SOUNDFONTS;
     int sfid;
@@ -135,17 +134,25 @@ void fluidsynth_lv2_run(LV2_Handle instance, uint32_t sample_count) {
 
 	LV2_Atom_Sequence* seq = (LV2_Atom_Sequence*) a->ports[FLUIDSYNTH_LV2_ATOM_INPUT_PORT];
 
+	int curFrame = 0;
+
 	LV2_ATOM_SEQUENCE_FOREACH(seq, ev) {
 		if (ev->body.type == a->midi_event_uri) {
-			puts("MIDI EVENT");
+		    // FIXME: process beats
+		    if (ev->time.frames > curFrame) {
+                fluid_synth_write_float(a->synth, ev->time.frames - curFrame,
+                                        a->ports[FLUIDSYNTH_LV2_AUDIO_OUT_LEFT], curFrame, 1,
+                                        a->ports[FLUIDSYNTH_LV2_AUDIO_OUT_RIGHT], curFrame, 1);
+                curFrame = ev->time.frames;
+            }
 			fluidsynth_lv2_process_midi_event(a, ev);
 		}
 	}
 
-	// FIXME: respect event time frames.
-    fluid_synth_write_float(a->synth, sample_count,
-            a->ports[FLUIDSYNTH_LV2_AUDIO_OUT_LEFT], 0,1,
-            a->ports[FLUIDSYNTH_LV2_AUDIO_OUT_RIGHT], 0, 1);
+	if (curFrame < sample_count)
+        fluid_synth_write_float(a->synth, sample_count - curFrame,
+            a->ports[FLUIDSYNTH_LV2_AUDIO_OUT_LEFT], curFrame,1,
+            a->ports[FLUIDSYNTH_LV2_AUDIO_OUT_RIGHT], curFrame, 1);
 }
 
 void fluidsynth_lv2_deactivate(LV2_Handle instance) {
