@@ -250,6 +250,8 @@ have to follow it when distributing or making changes to those parts.
 
 `fluidsynth` is distributed under LGPL v2.1 license.
 
+`aap-fluidsynth/src/main/assets/FluidR3Mono_GM.sf3` is a binary copy of the same file from [`fluidr3mono-gm-soundfont` debian package](https://ubuntu.pkgs.org/18.04/ubuntu-universe-amd64/fluidr3mono-gm-soundfont_2.315-4_all.deb.html) and it is licensed under the MIT license.
+
 `ayumi-lv2` and `ayumi` are distributed under the MIT license.
 
 Each of those plugin sets is packaged into one application respectively.

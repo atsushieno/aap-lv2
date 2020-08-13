@@ -16,6 +16,7 @@
 #define FLUIDSYNTH_LV2_ATOM_INPUT_PORT 0
 #define FLUIDSYNTH_LV2_AUDIO_OUT_LEFT 1
 #define FLUIDSYNTH_LV2_AUDIO_OUT_RIGHT 2
+#define DEFAULT_SOUNDFONTS {"FluidR3Mono_GM.sf3"}
 
 typedef struct {
 	LV2_URID_Map *urid_map;
@@ -65,9 +66,11 @@ LV2_Handle fluidsynth_lv2_instantiate(
     fluid_synth_add_sfloader(synth, handle->asset_sfloader);
     //Java_fluidsynth_androidextensions_NativeHandler_setAssetManagerContext()
 
-    // TODO: load soundfonts here.
+    const char* defaultSoundfonts[] DEFAULT_SOUNDFONTS;
+    for (auto sf : defaultSoundfonts)
+        fluid_synth_sfload(synth, sf, 0);
 
-	return handle;
+    return handle;
 }
 
 void fluidsynth_lv2_connect_port(
@@ -82,8 +85,40 @@ void fluidsynth_lv2_activate(LV2_Handle instance) {
 }
 
 void fluidsynth_lv2_process_midi_event(FluidsynthLV2Handle *a, const LV2_Atom_Event *ev) {
-
-    // TODO: implement
+    int noise, tone_switch, noise_switch, env_switch;
+    const uint8_t *const msg = (const uint8_t *)(ev + 1);
+    int channel = msg[0] & 0xF;
+    int mixer;
+    fluid_synth_t* synth = a->synth;
+    switch (lv2_midi_message_type(msg)) {
+    case LV2_MIDI_MSG_NOTE_OFF:
+        fluid_synth_noteoff(synth, channel, msg[1]);
+        break;
+    case LV2_MIDI_MSG_NOTE_ON:
+        fluid_synth_noteon(synth, channel, msg[1], msg[2]);
+        break;
+    case LV2_MIDI_MSG_CHANNEL_PRESSURE:
+        fluid_synth_channel_pressure(synth, channel, msg[1]);
+        break;
+    case LV2_MIDI_MSG_CONTROLLER:
+        fluid_synth_cc(synth, channel, msg[1], msg[2]);
+        break;
+    case LV2_MIDI_MSG_PGM_CHANGE:
+        fluid_synth_program_change(synth, channel, msg[1]);
+        break;
+    case LV2_MIDI_MSG_NOTE_PRESSURE:
+        fluid_synth_key_pressure(synth, channel, msg[1], msg[2]);
+        break;
+    case LV2_MIDI_MSG_BENDER:
+        fluid_synth_pitch_bend(synth, channel, msg[1] + msg[2] * 0x80);
+        break;
+    case LV2_MIDI_MSG_RESET:
+        fluid_synth_system_reset(synth);
+        break;
+    case LV2_MIDI_MSG_SYSTEM_EXCLUSIVE:
+        fluid_synth_sysex(synth, (const char*) const_cast<const uint8_t *>(msg), ev->body.size, nullptr, nullptr, nullptr, 0);
+        break;
+    }
 }
 
 void fluidsynth_lv2_run(LV2_Handle instance, uint32_t sample_count) {

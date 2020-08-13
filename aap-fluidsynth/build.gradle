@@ -41,6 +41,10 @@ android {
     }
     ndkVersion = '21.2.6472646'
 
+    aaptOptions {
+        noCompress 'sf3'
+    }
+
     packagingOptions {
         //doNotStrip "*/*/*.so" // debuggable!
     }
