@@ -67,8 +67,16 @@ LV2_Handle fluidsynth_lv2_instantiate(
     //Java_fluidsynth_androidextensions_NativeHandler_setAssetManagerContext()
 
     const char* defaultSoundfonts[] DEFAULT_SOUNDFONTS;
+    int sfid;
     for (auto sf : defaultSoundfonts)
-        fluid_synth_sfload(synth, sf, 0);
+        sfid = fluid_synth_sfload(synth, sf, 0);
+
+    fluid_synth_program_select(synth, 0, sfid, 0, 0); // initialize prog/bank to 0.
+
+    // it is what FluidPlug does - boostrap synth engine
+    float l[1024];
+    float r[1024];
+    fluid_synth_write_float(synth, 1024, l, 0, 1, r, 0, 1);
 
     return handle;
 }
@@ -82,6 +90,7 @@ void fluidsynth_lv2_connect_port(
 }
 
 void fluidsynth_lv2_activate(LV2_Handle instance) {
+	FluidsynthLV2Handle* a = (FluidsynthLV2Handle*) instance;
 }
 
 void fluidsynth_lv2_process_midi_event(FluidsynthLV2Handle *a, const LV2_Atom_Event *ev) {
@@ -133,8 +142,10 @@ void fluidsynth_lv2_run(LV2_Handle instance, uint32_t sample_count) {
 		}
 	}
 
-    float* out[2] = {a->ports[FLUIDSYNTH_LV2_AUDIO_OUT_LEFT], a->ports[FLUIDSYNTH_LV2_AUDIO_OUT_RIGHT]};
-    fluid_synth_process(a->synth, sample_count, 0, NULL, sample_count, out);
+	// FIXME: respect event time frames.
+    fluid_synth_write_float(a->synth, sample_count,
+            a->ports[FLUIDSYNTH_LV2_AUDIO_OUT_LEFT], 0,1,
+            a->ports[FLUIDSYNTH_LV2_AUDIO_OUT_RIGHT], 0, 1);
 }
 
 void fluidsynth_lv2_deactivate(LV2_Handle instance) {
