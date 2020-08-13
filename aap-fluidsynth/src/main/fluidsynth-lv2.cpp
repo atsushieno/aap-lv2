@@ -12,7 +12,7 @@
 #include <jni.h>
 #include "aap/android-context.h"
 
-#define FLUIDSYNTH_LV2_URI "https://github.com/atsushieno/ayumi-lv2"
+#define FLUIDSYNTH_LV2_URI "https://github.com/atsushieno/aap-fluidsynth"
 #define FLUIDSYNTH_LV2_ATOM_INPUT_PORT 0
 #define FLUIDSYNTH_LV2_AUDIO_OUT_LEFT 1
 #define FLUIDSYNTH_LV2_AUDIO_OUT_RIGHT 2
