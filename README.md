@@ -38,6 +38,8 @@ The dependency Android binaries are built from [android-native-audio-builders](h
 
 For LV2, mda-lv2, and guitarix, the `make` step lets it download from the release tarballs.
 
+For sfizz, it directly references its own `CMakeLists.txt` from `build.gradle`, but also downloads the binary buidls of `libsndfile` and its dependencies.
+
 ### directory structure conversion
 
 AAP-LV2 packaging is not straightforward, because the file layouts is differrent from that on Linux. Android native libraries are usually packaged like:
@@ -53,13 +55,15 @@ while normal `lv2` packages usually look like:
 - `lib/foo.lv2/foo.ttl`
 - `lib/foo.lv2/foo.so`
 
-Those `lib/*.lv2/*.so` files cannot be dynamically loaded unlike Linux desktop, so they have to be moved to `lib/*/` directory. Other LV2 manifests are packaged under `assets/lv2` directory. Therefore, the file layout is:
+Those `lib/*.lv2/*.so` files cannot be dynamically loaded unlike Linux desktop, so they have to be moved to `lib/*/` directory. Other LV2 manifests are packaged under `assets/lv2` directory. Therefore, the file layout in the final apk is:
 
 - `assets/foo.lv2/manifest.ttl`
 - `assets/foo.lv2/foo.ttl`
 - `lib/{abi}/foo.so`
 
 The `import-lv2-deps.sh` does this task for `aap-mda-lv2`. Similarly, `import-guitarix-deps.sh` does it for `aap-guitarix`.
+
+Note that this directory layout is different from source directory. In the sources, those `.so` files are placed under `src/main/jniLibs`.
 
 ### AAP Metadata
 
