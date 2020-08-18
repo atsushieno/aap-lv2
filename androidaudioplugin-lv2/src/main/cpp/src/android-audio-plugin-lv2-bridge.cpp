@@ -549,6 +549,22 @@ const void* aap_lv2_get_port_value(
     return data;
 }
 
+void aap_lv2_set_port_value(
+        const char* port_symbol, void* user_data, const void* value, uint32_t size, uint32_t type)
+{
+    auto l = (AAPLV2PluginContext *) user_data;
+    auto uri = lilv_new_string(l->world, port_symbol);
+    auto port = lilv_plugin_get_port_by_symbol(l->plugin, uri);
+    lilv_node_free(uri);
+    int index = lilv_port_get_index(l->plugin, port);
+
+    // FIXME: preserve buffer in context, and retrieve from there.
+    auto data = l->cached_buffer->buffers[index];
+
+    // should there be any type check?
+    memcpy(data, value, size);
+}
+
 void aap_lv2_plugin_get_state(AndroidAudioPlugin *plugin, AndroidAudioPluginState *result) {
     auto l = (AAPLV2PluginContext *) plugin->plugin_specific;
     auto features = l->newFeaturesList();
@@ -568,7 +584,11 @@ void aap_lv2_plugin_get_state(AndroidAudioPlugin *plugin, AndroidAudioPluginStat
 }
 
 void aap_lv2_plugin_set_state(AndroidAudioPlugin *plugin, AndroidAudioPluginState *input) {
-    assert(false); // FIXME: implement
+    auto l = (AAPLV2PluginContext *) plugin->plugin_specific;
+    LilvState *state = lilv_state_new_from_string(l->world, &l->features.urid_map_feature_data, (const char*) input->raw_data);
+    auto features = l->newFeaturesList();
+    lilv_state_restore(state, l->instance, aap_lv2_set_port_value, l, 0, features.get());
+    lilv_state_delete(l->world, state);
 }
 
 LV2_Worker_Status
