@@ -597,8 +597,7 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
             &ctx->features.optionsFeature,
             &ctx->features.threadSafeRestoreFeature,
             &ctx->features.workerFeature,
-            // FIXME: enable this
-            //&ctx->features.stateWorkerFeature,
+            &ctx->features.stateWorkerFeature,
             nullptr
     };
 
