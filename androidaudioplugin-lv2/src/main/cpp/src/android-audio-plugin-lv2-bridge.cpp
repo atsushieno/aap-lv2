@@ -90,6 +90,7 @@ struct AAPLV2URIDs {
         urid_midi_event_type{0},
         urid_time_frame{0},
         urid_time_beats{0},
+        urid_atom_float_type{0},
         urid_worker_interface{0};
 };
 
@@ -120,6 +121,24 @@ public:
     int32_t midi_buffer_size = 1024;
     std::map<int32_t, LV2_Atom_Sequence *> midi_atom_buffers{};
     LV2_Atom_Forge *midi_atom_forge;
+
+    std::unique_ptr<LV2_Feature*> newFeaturesList()
+    {
+        LV2_Feature* list [] {
+                &features.uridFeature,
+                &features.logFeature,
+                &features.bufSizeFeature,
+                &features.optionsFeature,
+                &features.threadSafeRestoreFeature,
+                &features.workerFeature,
+                &features.stateWorkerFeature,
+                nullptr
+        };
+        auto ptr = (LV2_Feature**) calloc(sizeof(LV2_Feature*), sizeof(list));
+        memcpy(ptr, list, sizeof(LV2_Feature*) * sizeof(list));
+        std::unique_ptr<LV2_Feature*> ret{ptr};
+        return ret;
+    }
 
     // from jalv codebase
     Symap*             symap;          ///< URI map
@@ -512,8 +531,40 @@ void aap_lv2_plugin_deactivate(AndroidAudioPlugin *plugin) {
     lilv_instance_deactivate(l->instance);
 }
 
+const void* aap_lv2_get_port_value(
+        const char* port_symbol, void* user_data, uint32_t* size, uint32_t* type)
+{
+    auto l = (AAPLV2PluginContext *) user_data;
+    auto uri = lilv_new_string(l->world, port_symbol);
+    auto port = lilv_plugin_get_port_by_symbol(l->plugin, uri);
+    lilv_node_free(uri);
+    int index = lilv_port_get_index(l->plugin, port);
+
+    // FIXME: preserve buffer in context, and retrieve from there.
+    auto data = l->cached_buffer->buffers[index];
+
+    // FIXME: implement correctly
+    *size = sizeof(float);
+    *type = l->urids.urid_atom_float_type;
+    return data;
+}
+
 void aap_lv2_plugin_get_state(AndroidAudioPlugin *plugin, AndroidAudioPluginState *result) {
-    assert(false); // FIXME: implement
+    auto l = (AAPLV2PluginContext *) plugin->plugin_specific;
+    auto features = l->newFeaturesList();
+    LilvState *state = lilv_state_new_from_instance(l->plugin, l->instance, &l->features.urid_map_feature_data,
+            nullptr, nullptr, nullptr, nullptr, aap_lv2_get_port_value, l, 0, features.get());
+    auto nameNode = lilv_plugin_get_name(l->plugin);
+    std::string stateUriBase{"urn:aap_state:"};
+    auto nameChars = lilv_node_as_string(nameNode);
+    std::string nameString{nameChars};
+    std::string stateUri = stateUriBase + nameString;
+    lilv_node_free(nameNode);
+    auto stateString = lilv_state_to_string(l->world, &l->features.urid_map_feature_data, &l->features.urid_unmap_feature_data,
+            state, stateUri.c_str(), nullptr);
+    result->raw_data = strdup(stateString);
+    result->data_size = strlen(stateString);
+    lilv_state_delete(l->world, state);
 }
 
 void aap_lv2_plugin_set_state(AndroidAudioPlugin *plugin, AndroidAudioPluginState *input) {
@@ -590,21 +641,12 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
     options[2] = LV2_Options_Option{LV2_OPTIONS_BLANK, 0, 0, 0, 0};
     ctx->features.optionsFeature.data = &options;
 
-    LV2_Feature* features[] = {
-            &ctx->features.uridFeature,
-            &ctx->features.logFeature,
-            &ctx->features.bufSizeFeature,
-            &ctx->features.optionsFeature,
-            &ctx->features.threadSafeRestoreFeature,
-            &ctx->features.workerFeature,
-            &ctx->features.stateWorkerFeature,
-            nullptr
-    };
+    std::unique_ptr<LV2_Feature*> features = ctx->newFeaturesList();
 
     // for jalv worker
     assert(!zix_sem_init(&ctx->worker.sem, 0));
 
-    LilvInstance *instance = lilv_plugin_instantiate(plugin, sampleRate, features);
+    LilvInstance *instance = lilv_plugin_instantiate(plugin, sampleRate, features.get());
     assert (instance);
     ctx->instance = instance;
 
@@ -615,6 +657,7 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
         ctx->urids.urid_midi_event_type = map->map(map->handle, LV2_MIDI__MidiEvent);
         ctx->urids.urid_time_beats = map->map(map->handle, LV2_ATOM__beatTime);
         ctx->urids.urid_time_frame = map->map(map->handle, LV2_ATOM__frameTime);
+        ctx->urids.urid_atom_float_type = map->map(map->handle, LV2_ATOM__Float);
         ctx->urids.urid_worker_interface = map->map(map->handle, LV2_WORKER__interface);
     }
 
