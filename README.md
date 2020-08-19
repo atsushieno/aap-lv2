@@ -8,6 +8,10 @@ The sample ports include:
 - https://github.com/brummer10/guitarix
 - https://github.com/sfztools/sfizz (still needs some host that can pass sfz filename)
 
+...as well as own sample implementation:
+
+- aap-fluidsynth (subdirectory in this repo)
+- aap-ayumi (subdirectory in this repo)
 
 ## Building
 
@@ -20,7 +24,7 @@ Right now this repository is supposed to be checked out in the same directory as
 
 LV2 Dynamic Manifest feature expects that the hosting environment has access to writable temporary directory. It is wrong assumption and LV2 specification has to remove any reference to `FILE*` in the public API. It is not supported in AAP.
 
-LV2 State `makePath` feature is problematic for the same reason.
+LV2 State `makePath` and `mapPath` features are not supported for the same reason.
 
 
 ## Importing LV2 plugins
@@ -39,6 +43,8 @@ The dependency Android binaries are built from [android-native-audio-builders](h
 For LV2, mda-lv2, and guitarix, the `make` step lets it download from the release tarballs.
 
 For sfizz, it directly references its own `CMakeLists.txt` from `build.gradle`, but also downloads the binary buidls of `libsndfile` and its dependencies.
+
+For fluidsynth, it directly downloads Android binary builds from the fluidsynth CI builds.
 
 ### directory structure conversion
 
