@@ -97,8 +97,8 @@ struct AAPLV2URIDs {
 class AAPLV2PluginContext {
 public:
     AAPLV2PluginContext(AAPLV2PluginContextStatics *statics, LilvWorld *world,
-                        const LilvPlugin *plugin)
-            : statics(statics), world(world), plugin(plugin), instance(instance) {
+                        const LilvPlugin *plugin, int32_t sampleRate)
+            : statics(statics), world(world), plugin(plugin), instance(instance), sample_rate(sampleRate) {
         midi_atom_forge = (LV2_Atom_Forge *) calloc(1024, 1);
         symap = symap_new();
     }
@@ -116,6 +116,7 @@ public:
     LilvWorld *world;
     const LilvPlugin *plugin;
     LilvInstance *instance;
+    int32_t sample_rate;
     AndroidAudioPluginBuffer *cached_buffer{nullptr};
     void *dummy_raw_buffer{nullptr};
     int32_t midi_buffer_size = 1024;
@@ -410,7 +411,7 @@ normalize_midi_event_for_lv2_forge(AAPLV2PluginContext* ctx, LV2_Atom_Forge *for
 
     unsigned char running_status = 0;
 
-    uint64_t ticks = 0;
+    uint64_t deltaTime = 0;
 
     // This is far from precise. No support for sysex and meta, no run length.
     while (srcN < srcEnd) {
@@ -453,14 +454,20 @@ normalize_midi_event_for_lv2_forge(AAPLV2PluginContext* ctx, LV2_Atom_Forge *for
         }
 
         if (timeDivision < 0) {
-            uint8_t ticksPerFrame = -timeDivision;
-            ticks += ((((timecode & 0xFF000000u) >> 24u) * 60 + ((timecode & 0xFF0000u) >> 16u)) *
-                      60 +
-                      ((timecode & 0xFF00u) >> 8u) * ticksPerFrame + (timecode & 0xFFu));
-            lv2_atom_forge_frame_time(forge, ticks * numFrames / ticksPerFrame);
+            // deltaTime is a frame number
+            int32_t framesPerSecond = ctx->sample_rate;
+            uint8_t framesPerTick = -timeDivision;
+            uint8_t hours = (timecode & 0xFF000000u) >> 24u;
+            uint8_t minutes = (timecode & 0xFF0000u) >> 16u;
+            uint8_t seconds = (timecode & 0xFF00u) >> 8u;
+            uint8_t ticks = timecode & 0xFFu;
+            deltaTime += framesPerSecond * ((hours * 60 + minutes) * 60 + seconds) +
+                    framesPerTick * ticks;
+            lv2_atom_forge_frame_time(forge, deltaTime);
         } else {
-            ticks += timecode;
-            lv2_atom_forge_beat_time(forge, (double) ticks / timeDivision * 120 / 60);
+            // deltaTime is a beat based time
+            deltaTime += timecode;
+            lv2_atom_forge_beat_time(forge, (double) deltaTime / timeDivision * 120 / 60);
         }
         lv2_atom_forge_raw(forge, &midiEventSize, sizeof(int));
         lv2_atom_forge_raw(forge, &ctx->urids.urid_midi_event_type, sizeof(int));
@@ -624,7 +631,7 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
     assert (plugin);
     assert (lilv_plugin_verify(plugin));
 
-    auto ctx = std::make_unique<AAPLV2PluginContext>(statics, world, plugin);
+    auto ctx = std::make_unique<AAPLV2PluginContext>(statics, world, plugin, sampleRate);
 
     ctx->features.urid_map_feature_data.handle = ctx.get();
     ctx->features.urid_map_feature_data.map = map_uri;
