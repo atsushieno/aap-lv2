@@ -177,9 +177,6 @@ External software projects:
     - libvorbis
     - flac
 
-- vst3 category (TODO)
-  - vst3sdk (no particular dependency found, for non-GUI parts)
-
 There used to be cairo and all those dependencies, but they are all about "examples" in lv2 repo and totally optional. They are not really designed for Android, so now we skip them.
 
 Also, unlike before, we don't build LV2 for desktop anymore. They are regarded as the installed packages on the system. Ubuntu 20.04 has those minimum requirement versions. If they don't exist for your distribution, build and install them from source.
@@ -187,6 +184,8 @@ Also, unlike before, we don't build LV2 for desktop anymore. They are regarded a
 ### cerbero fork
 
 The external dependencies are built using cerbero build system. Cerbero is a comprehensive build system that cares all standard Android ABIs and builds some complicated projects like glib (which has many dependencies) and cairo.
+
+We would keep using cerbero as the primary build engine, until ndkports or vcpkg becomes really usable. Currently both of them are no-go yet (ndkports cannot build basic autotools-based projects that has any dependency, and vcpkg only cares about Windows in practice).
 
 ### LV2 forks
 
