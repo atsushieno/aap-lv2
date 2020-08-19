@@ -354,26 +354,28 @@ void aap_lv2_plugin_delete(
     delete plugin;
 }
 
-void resetPorts(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *buffer) {
+// It can be called by prepare() or process(), and for the latter case it must conform to
+// realtime processing requirements. Thus, no allocation is permitted.
+void resetPorts(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *buffer, bool allocationPermitted) {
     auto ctx = (AAPLV2PluginContext *) plugin->plugin_specific;
     auto lilvPlugin = ctx->plugin;
     auto instance = ctx->instance;
-
-    auto dummyBuffer = calloc(buffer->num_frames * sizeof(float), 1);
-    ctx->dummy_raw_buffer = dummyBuffer;
 
     ctx->cached_buffer = buffer;
 
     assert(buffer != nullptr);
 
-    // FIXME: <del>it is quite awkward to reset buffer size to whatever value for audio I/O but
-    //  there is no any reasonable alternative value to reuse. Maybe something like 0x1000 is enough
-    //  (but what happens if there are MPE-like massive messages?)</del>
-    //  >>> The buffer size could be specified using Buf Size extension, for Atom-specific ports.
-    if (ctx->midi_buffer_size < buffer->num_frames) {
-        for (auto p : ctx->midi_atom_buffers) {
-            free(p.second);
-            ctx->midi_atom_buffers[p.first] = (LV2_Atom_Sequence *) calloc(buffer->num_frames, 1);
+    if (allocationPermitted) {
+        if (!ctx->dummy_raw_buffer)
+            ctx->dummy_raw_buffer = calloc(buffer->num_frames * sizeof(float), 1);
+
+        //  >>> The buffer size could be specified using Buf Size extension, for Atom-specific ports.
+        if (ctx->midi_buffer_size < buffer->num_frames) {
+            for (auto p : ctx->midi_atom_buffers) {
+                free(p.second);
+                ctx->midi_atom_buffers[p.first] = (LV2_Atom_Sequence *) calloc(buffer->num_frames,
+                                                                               1);
+            }
         }
     }
 
@@ -382,14 +384,14 @@ void resetPorts(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *buffer) {
         auto iter = ctx->midi_atom_buffers.find(p);
         auto bp = iter != ctx->midi_atom_buffers.end() ? iter->second : buffer->buffers[p];
         if (bp == nullptr)
-            lilv_instance_connect_port(instance, p, dummyBuffer);
+            lilv_instance_connect_port(instance, p, ctx->dummy_raw_buffer);
         else
             lilv_instance_connect_port(instance, p, bp);
     }
 }
 
 void aap_lv2_plugin_prepare(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *buffer) {
-    resetPorts(plugin, buffer);
+    resetPorts(plugin, buffer, true);
 }
 
 void aap_lv2_plugin_activate(AndroidAudioPlugin *plugin) {
@@ -490,7 +492,7 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
     auto ctx = (AAPLV2PluginContext *) plugin->plugin_specific;
 
     if (buffer != ctx->cached_buffer)
-        resetPorts(plugin, buffer);
+        resetPorts(plugin, buffer, false);
 
     /* Process any worker replies. */
     jalv_worker_emit_responses(&ctx->state_worker, ctx->instance);
