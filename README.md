@@ -7,11 +7,11 @@ The sample ports include:
 - https://gitlab.com/drobilla/mda-lv2
 - https://github.com/brummer10/guitarix
 - https://github.com/sfztools/sfizz (still needs some host that can pass sfz filename)
+- https://github.com/atsushieno/ayumi-lv2
 
 ...as well as own sample implementation:
 
 - aap-fluidsynth (subdirectory in this repo)
-- aap-ayumi (subdirectory in this repo)
 
 ## Building
 
