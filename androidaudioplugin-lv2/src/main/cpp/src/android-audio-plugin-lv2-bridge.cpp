@@ -76,7 +76,8 @@ public:
     LV2_Options_Option minBlockLengthOption;
     LV2_Options_Option maxBlockLengthOption;
 
-    LV2_Feature uridFeature{LV2_URID__map, &urid_map_feature_data};
+    LV2_Feature mapFeature{LV2_URID__map, &urid_map_feature_data};
+    LV2_Feature unmapFeature{LV2_URID__unmap, &urid_unmap_feature_data};
     LV2_Feature logFeature{LV2_LOG__log, &logData};
     LV2_Feature bufSizeFeature{LV2_BUF_SIZE__boundedBlockLength, nullptr};
     LV2_Feature optionsFeature{LV2_OPTIONS__options, nullptr};
@@ -123,15 +124,14 @@ public:
     std::map<int32_t, LV2_Atom_Sequence *> midi_atom_buffers{};
     LV2_Atom_Forge *midi_atom_forge;
 
-    std::unique_ptr<LV2_Feature*> newFeaturesList()
+    std::unique_ptr<LV2_Feature*> stateFeaturesList()
     {
         LV2_Feature* list [] {
-                &features.uridFeature,
+                &features.mapFeature,
+                &features.unmapFeature,
                 &features.logFeature,
-                &features.bufSizeFeature,
                 &features.optionsFeature,
                 &features.threadSafeRestoreFeature,
-                &features.workerFeature,
                 &features.stateWorkerFeature,
                 nullptr
         };
@@ -142,12 +142,12 @@ public:
     }
 
     // from jalv codebase
-    Symap*             symap;          ///< URI map
+    Symap*             symap{nullptr};          ///< URI map
     ZixSem             symap_lock;     ///< Lock for URI map
     JalvWorker         worker;         ///< Worker thread implementation
     JalvWorker         state_worker;   ///< Synchronous worker for state restore
     ZixSem             work_lock;      ///< Lock for plugin work() method
-    bool               safe_restore;   ///< Plugin restore() is thread-safe
+    bool               safe_restore{false};   ///< Plugin restore() is thread-safe
     bool terminate{false};
 };
 
@@ -574,7 +574,7 @@ void aap_lv2_set_port_value(
 
 void aap_lv2_plugin_get_state(AndroidAudioPlugin *plugin, AndroidAudioPluginState *result) {
     auto l = (AAPLV2PluginContext *) plugin->plugin_specific;
-    auto features = l->newFeaturesList();
+    auto features = l->stateFeaturesList();
     LilvState *state = lilv_state_new_from_instance(l->plugin, l->instance, &l->features.urid_map_feature_data,
             nullptr, nullptr, nullptr, nullptr, aap_lv2_get_port_value, l, 0, features.get());
     auto nameNode = lilv_plugin_get_name(l->plugin);
@@ -593,7 +593,7 @@ void aap_lv2_plugin_get_state(AndroidAudioPlugin *plugin, AndroidAudioPluginStat
 void aap_lv2_plugin_set_state(AndroidAudioPlugin *plugin, AndroidAudioPluginState *input) {
     auto l = (AAPLV2PluginContext *) plugin->plugin_specific;
     LilvState *state = lilv_state_new_from_string(l->world, &l->features.urid_map_feature_data, (const char*) input->raw_data);
-    auto features = l->newFeaturesList();
+    auto features = l->stateFeaturesList();
     lilv_state_restore(state, l->instance, aap_lv2_set_port_value, l, 0, features.get());
     lilv_state_delete(l->world, state);
 }
@@ -669,12 +669,21 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
     options[2] = LV2_Options_Option{LV2_OPTIONS_BLANK, 0, 0, 0, 0};
     ctx->features.optionsFeature.data = &options;
 
-    std::unique_ptr<LV2_Feature*> features = ctx->newFeaturesList();
+    LV2_Feature* features [] {
+            &ctx->features.mapFeature,
+            &ctx->features.unmapFeature,
+            &ctx->features.logFeature,
+            &ctx->features.bufSizeFeature,
+            &ctx->features.optionsFeature,
+            &ctx->features.threadSafeRestoreFeature,
+            &ctx->features.workerFeature,
+            nullptr
+    };
 
     // for jalv worker
     assert(!zix_sem_init(&ctx->worker.sem, 0));
 
-    LilvInstance *instance = lilv_plugin_instantiate(plugin, sampleRate, features.get());
+    LilvInstance *instance = lilv_plugin_instantiate(plugin, sampleRate, features);
     assert (instance);
     ctx->instance = instance;
 
