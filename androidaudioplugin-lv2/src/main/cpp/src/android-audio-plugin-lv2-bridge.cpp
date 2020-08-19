@@ -631,6 +631,7 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
     ctx->features.urid_unmap_feature_data.handle = ctx.get();
     ctx->features.urid_unmap_feature_data.unmap = unmap_uri;
 
+    assert(!zix_sem_init(&ctx->symap_lock, 1));
     assert(!zix_sem_init(&ctx->work_lock, 1));
     ctx->worker.ctx = ctx.get();
     ctx->state_worker.ctx = ctx.get();
