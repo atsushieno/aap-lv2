@@ -873,7 +873,7 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
     }
 
     if (hasUMPPort && lilv_plugin_has_extension_data(ctx->plugin, ctx->statics->midi2_established_protocol_uri_node)) {
-        ctx->ump_established_protocol = (LV2_URID) lilv_instance_get_extension_data(ctx->instance, LV2_MIDI2__establishedProtocol);
+        ctx->ump_established_protocol = (LV2_URID) (int64_t) lilv_instance_get_extension_data(ctx->instance, LV2_MIDI2__establishedProtocol);
     }
 
     return new AndroidAudioPlugin{
