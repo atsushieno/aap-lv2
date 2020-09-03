@@ -30,7 +30,12 @@
 #include <lv2/options/options.h>
 #include <lv2/state/state.h>
 
+#include "cmidi2.h"
+#include "lv2-midi2.h"
+
 #define JUCEAAP_LOG_PERF 0
+
+using namespace cmidi2;
 
 namespace aaplv2bridge {
 
@@ -47,8 +52,9 @@ int log_printf(LV2_Log_Handle handle, LV2_URID type, const char *fmt, ...) {
 }
 
 typedef struct {
-    LilvNode *audio_port_uri_node, *control_port_uri_node, *atom_port_uri_node, *input_port_uri_node, *output_port_uri_node, *work_interface_uri_node;
-
+    LilvNode *audio_port_uri_node, *control_port_uri_node, *atom_port_uri_node,
+             *input_port_uri_node, *output_port_uri_node, *work_interface_uri_node,
+             *midi2_established_protocol_uri_node, *midi2_UMP_uri_node, *atom_supports_uri_node;
 } AAPLV2PluginContextStatics;
 
 // imported from jalv
@@ -84,6 +90,9 @@ public:
     LV2_Feature workerFeature{LV2_WORKER__schedule, &worker_schedule_data};
     LV2_Feature stateWorkerFeature{LV2_WORKER__schedule, &state_worker_schedule_data};
     LV2_Feature threadSafeRestoreFeature{LV2_STATE__threadSafeRestore, nullptr};
+    LV2_Feature midi2UmpFeature{LV2_MIDI2__ump, nullptr};
+    LV2_Feature midi2Midi1ProtocolFeature{LV2_MIDI2__midi1Protocol, nullptr};
+    LV2_Feature midi2Midi2ProtocolFeature{LV2_MIDI2__midi2Protocol, nullptr};
 };
 
 struct AAPLV2URIDs {
@@ -92,7 +101,9 @@ struct AAPLV2URIDs {
         urid_time_frame{0},
         urid_time_beats{0},
         urid_atom_float_type{0},
-        urid_worker_interface{0};
+        urid_worker_interface{0},
+        urid_midi2_midi1_protocol{0},
+        urid_midi2_midi2_protocol{0};
 };
 
 class AAPLV2PluginContext {
@@ -123,6 +134,8 @@ public:
     int32_t midi_buffer_size = 1024;
     std::map<int32_t, LV2_Atom_Sequence *> midi_atom_buffers{};
     LV2_Atom_Forge *midi_atom_forge;
+    LV2_URID ump_established_protocol; // between this LV2 bridge and the actual LV2 plugin
+    bool ipc_midi2_enabled{false}; // between host app and service (this bridge)
 
     std::unique_ptr<LV2_Feature*> stateFeaturesList()
     {
@@ -399,83 +412,184 @@ void aap_lv2_plugin_activate(AndroidAudioPlugin *plugin) {
     lilv_instance_activate(l->instance);
 }
 
-// returns true if there was at least one MIDI message in src.
 void
-normalize_midi_event_for_lv2_forge(AAPLV2PluginContext* ctx, LV2_Atom_Forge *forge, LV2_Atom_Sequence *, int32_t numFrames,
+write_midi_events_to_lv2_forge(AAPLV2PluginContext* ctx, LV2_Atom_Forge *forge, LV2_Atom_Sequence *, int32_t numFrames,
                                    int32_t timeDivision, void *src) {
+        assert(src != nullptr);
+        assert(forge != nullptr);
+
+        int32_t srcN = 8;
+
+        auto csrc = (uint8_t *) src;
+        int32_t srcEnd = *((int32_t *) src + 1) + 8; // offset
+
+        uint8_t running_status = 0;
+
+        uint64_t deltaTime = 0;
+
+        while (srcN < srcEnd) {
+            // MIDI Event message
+            // Atom Event header
+            uint64_t timecode = 0;
+            uint digits = 0;
+            while (csrc[srcN] >= 0x80 && srcN < srcEnd) // variable length
+                timecode += ((uint32_t) (csrc[srcN++] - 0x80)) << (7 * digits++);
+            if (srcN == srcEnd)
+                break; // invalid data
+            timecode += (csrc[srcN++] << (7 * digits));
+
+            uint8_t statusByte = csrc[srcN] >= 0x80 ? csrc[srcN] : running_status;
+            running_status = statusByte;
+            uint8_t eventType = statusByte & 0xF0u;
+            uint32_t midiEventSize = 3;
+            int sysexPos = srcN;
+            switch (eventType) {
+                case 0xF0:
+                    midiEventSize = 2; // F0 + F7
+                    while (csrc[sysexPos++] != 0xF7 && sysexPos < srcEnd)
+                        midiEventSize++;
+                    break;
+                case 0xC0:
+                case 0xD0:
+                case 0xF1:
+                case 0xF3:
+                case 0xF9:
+                    midiEventSize = 2;
+                    break;
+                case 0xF6:
+                case 0xF7:
+                    midiEventSize = 1;
+                    break;
+                default:
+                    if (eventType > 0xF8)
+                        midiEventSize = 1;
+                    break;
+            }
+
+            if (timeDivision < 0) {
+                // deltaTime is a frame number
+                int32_t framesPerSecond = ctx->sample_rate;
+                uint8_t framesPerTick = -timeDivision;
+                uint8_t hours = (timecode & 0xFF000000u) >> 24u;
+                uint8_t minutes = (timecode & 0xFF0000u) >> 16u;
+                uint8_t seconds = (timecode & 0xFF00u) >> 8u;
+                uint8_t ticks = timecode & 0xFFu;
+                deltaTime += framesPerSecond * ((hours * 60 + minutes) * 60 + seconds) +
+                             framesPerTick * ticks;
+                lv2_atom_forge_frame_time(forge, deltaTime);
+            } else {
+                // deltaTime is a beat based time
+                deltaTime += timecode;
+                lv2_atom_forge_beat_time(forge, (double) deltaTime / timeDivision * 120 / 60);
+            }
+            lv2_atom_forge_raw(forge, &midiEventSize, sizeof(int));
+            lv2_atom_forge_raw(forge, &ctx->urids.urid_midi_event_type, sizeof(int));
+            lv2_atom_forge_raw(forge, csrc + srcN, midiEventSize);
+            lv2_atom_forge_pad(forge, midiEventSize);
+            srcN += midiEventSize;
+        }
+    }
+
+void
+write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, LV2_Atom_Forge *forge, int32_t timeDivision, void *src) {
     assert(src != nullptr);
     assert(forge != nullptr);
 
-    int srcN = 8;
+    // The header bytes are structured as:
+    // - 0..3: int32_t size
+    // - 4..7: reserved
+    // - 8..13: MIDI-CI protocol (MIDI 1.0 or MIDI 2.0)
+    // - 14..15: reserved
+    int32_t srcN = 32;
 
-    auto csrc = (uint8_t *) src;
-    int32_t srcEnd = *((int *) src + 1) + 8; // offset
+    int32_t srcEnd = *((int32_t *) src + 1) + 32; // offset
 
-    unsigned char running_status = 0;
+    uint64_t currentJRTimestamp = 0; // unit of 1/31250 sec. (JR_TIMESTAMP_TICKS_PER_SECOND)
 
-    uint64_t deltaTime = 0;
+    uint8_t midi1Bytes[16];
 
-    // This is far from precise. No support for sysex and meta, no run length.
-    while (srcN < srcEnd) {
-        // MIDI Event message
-        // Atom Event header
-        uint64_t timecode = 0;
-        uint digits = 0;
-        while (csrc[srcN] >= 0x80 && srcN < srcEnd) // variable length
-            timecode += ((uint32_t) (csrc[srcN++] - 0x80)) << (7 * digits++);
-        if (srcN == srcEnd)
-            break; // invalid data
-        timecode += (csrc[srcN++] << (7 * digits));
-
-        uint8_t statusByte = csrc[srcN] >= 0x80 ? csrc[srcN] : running_status;
-        running_status = statusByte;
-        uint8_t eventType = statusByte & 0xF0u;
+    CMIDI2_UMP_SEQUENCE_FOREACH(src + srcN, srcEnd - srcN, iter) {
+        auto ump = (cmidi2_ump*) iter;
         uint32_t midiEventSize = 3;
-        int sysexPos = srcN;
-        switch (eventType) {
-            case 0xF0:
-                midiEventSize = 2; // F0 + F7
-                while (csrc[sysexPos++] != 0xF7 && sysexPos < srcEnd)
-                    midiEventSize++;
+        uint64_t sysex7, sysex8_1, sysex8_2;
+
+        auto messageType = cmidi2_ump_get_message_type(ump);
+        auto statusCode = cmidi2_ump_get_status_code(ump); // may not apply, but won't break.
+
+        // update time info if it is a utility message, and skip Atom event emission.
+        if (messageType == CMIDI2_MESSAGE_TYPE_UTILITY) {
+            switch (statusCode) {
+            case CMIDI2_JR_CLOCK:
+                // FIXME: take JR_CLOCK into consideration
                 break;
-            case 0xC0:
-            case 0xD0:
+            case CMIDI2_JR_TIMESTAMP:
+                currentJRTimestamp += cmidi2_ump_get_jr_timestamp_timestamp(ump);
+                break;
+            }
+            continue;
+        }
+
+        lv2_atom_forge_frame_time(forge, (double) currentJRTimestamp / JR_TIMESTAMP_TICKS_PER_SECOND * ctx->sample_rate);
+
+        midi1Bytes[0] = statusCode | cmidi2_ump_get_channel(ump);
+
+        switch (messageType) {
+        case CMIDI2_MESSAGE_TYPE_SYSTEM:
+            midiEventSize = 1;
+            switch (statusCode) {
             case 0xF1:
             case 0xF3:
             case 0xF9:
+                midi1Bytes[1] = cmidi2_ump_get_system_message_byte2(ump);
                 midiEventSize = 2;
                 break;
-            case 0xF6:
-            case 0xF7:
-                midiEventSize = 1;
+            }
+            break;
+        case CMIDI2_MESSAGE_TYPE_MIDI_1_CHANNEL:
+            midi1Bytes[1] = cmidi2_ump_get_midi1_byte2(ump);
+            switch (statusCode) {
+            case 0xC0:
+            case 0xD0:
+                midiEventSize = 2;
                 break;
             default:
-                if (eventType > 0xF8)
-                    midiEventSize = 1;
+                midi1Bytes[2] = cmidi2_ump_get_midi1_byte3(ump);
                 break;
+            }
+            break;
+        case CMIDI2_MESSAGE_TYPE_MIDI_2_CHANNEL:
+            // FIXME: convert MIDI2 to MIDI1 as long as possible
+            midiEventSize = 0;
+            break;
+        case CMIDI2_MESSAGE_TYPE_SYSEX7:
+            midiEventSize = 1 + cmidi2_ump_get_sysex7_num_bytes(ump);
+            sysex7 = cmidi2_ump_read_uint64_bytes(ump);
+            for (int i = 0; i < midiEventSize - 1; i++)
+                midi1Bytes[i] = cmidi2_ump_get_byte_from_uint64(sysex7, 2 + i);
+            break;
+        case CMIDI2_MESSAGE_TYPE_SYSEX8_MDS:
+            // Note that sysex8 num_bytes contains streamId, which is NOT part of MIDI 1.0 sysex7.
+            midiEventSize = 1 + cmidi2_ump_get_sysex8_num_bytes(ump) - 1;
+            sysex8_1 = cmidi2_ump_read_uint64_bytes(ump);
+            sysex8_2 = cmidi2_ump_read_uint64_bytes(ump);
+            for (int i = 0; i < 5 && i < midiEventSize - 1; i++)
+                midi1Bytes[i] = cmidi2_ump_get_byte_from_uint64(sysex8_1, 3 + i);
+            for (int i = 6; i < midiEventSize - 1; i++)
+                midi1Bytes[i] = cmidi2_ump_get_byte_from_uint64(sysex8_2, i);
+            // verify 7bit compatibility and then SYSEX8 to SYSEX7
+            for (int i = 1; i < midiEventSize; i++) {
+                if (midi1Bytes[i] > 0x80) {
+                    midiEventSize = 0;
+                    break;
+                }
+            }
+            break;
         }
 
-        if (timeDivision < 0) {
-            // deltaTime is a frame number
-            int32_t framesPerSecond = ctx->sample_rate;
-            uint8_t framesPerTick = -timeDivision;
-            uint8_t hours = (timecode & 0xFF000000u) >> 24u;
-            uint8_t minutes = (timecode & 0xFF0000u) >> 16u;
-            uint8_t seconds = (timecode & 0xFF00u) >> 8u;
-            uint8_t ticks = timecode & 0xFFu;
-            deltaTime += framesPerSecond * ((hours * 60 + minutes) * 60 + seconds) +
-                    framesPerTick * ticks;
-            lv2_atom_forge_frame_time(forge, deltaTime);
-        } else {
-            // deltaTime is a beat based time
-            deltaTime += timecode;
-            lv2_atom_forge_beat_time(forge, (double) deltaTime / timeDivision * 120 / 60);
-        }
         lv2_atom_forge_raw(forge, &midiEventSize, sizeof(int));
         lv2_atom_forge_raw(forge, &ctx->urids.urid_midi_event_type, sizeof(int));
-        lv2_atom_forge_raw(forge, csrc + srcN, midiEventSize);
+        lv2_atom_forge_raw(forge, midi1Bytes, midiEventSize);
         lv2_atom_forge_pad(forge, midiEventSize);
-        srcN += midiEventSize;
     }
 }
 
@@ -502,7 +616,7 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
     if (ctx->worker.iface && ctx->worker.iface->end_run)
         ctx->worker.iface->end_run(ctx->instance->lv2_handle);
 
-    // convert AAP MIDI messages into Atom Sequence of MidiEvent.
+    // convert AAP MIDI/MIDI2 messages into Atom Sequence of MidiEvent.
     for (auto p : ctx->midi_atom_buffers) {
         if (IS_OUTPUT_PORT(ctx, ctx->plugin, lilv_plugin_get_port_by_index(ctx->plugin, p.first))) {
             // For output ports. it must indicate the size of atom buffer.
@@ -516,14 +630,35 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
         lv2_atom_forge_set_buffer(forge, (uint8_t *) p.second, buffer->num_frames * sizeof(float));
         LV2_Atom_Forge_Frame frame;
         lv2_atom_sequence_clear(p.second);
-        int32_t timeDivision = *((int *) src);
-        auto seqRef = lv2_atom_forge_sequence_head(forge, &frame,
-                                                   timeDivision > 0x7FFF ? ctx->urids.urid_time_frame
-                                                                         : ctx->urids.urid_time_beats);
-        auto seq = (LV2_Atom_Sequence *) lv2_atom_forge_deref(forge, seqRef);
-        lv2_atom_forge_pop(forge, &frame);
-        normalize_midi_event_for_lv2_forge(ctx, forge, seq, buffer->num_frames, timeDivision, src);
-        seq->atom.size = forge->offset - sizeof(LV2_Atom);
+
+        /*
+         * There are 3 kinds of MIDI message processing involved:
+         *
+         * a) If the incoming input is MIDI2 (UMP),
+         *   1) If the plugin supports UMP, then send it as MIDI2 Atom (for either of the protocols).
+         *   2) If the plugin does not support UMP, then convert it to MIDI 1.0 Atom and send it.
+         * b) If the incoming input is MIDI1, then send it as MIDI Atom.
+         *
+         * There may be b1) and b2) in the future: if the plugin only supports UMP, then convert it to UMP and send it.
+         */
+
+        if (ctx->ump_established_protocol == 0 && ctx->ipc_midi2_enabled) {
+            auto seqRef = lv2_atom_forge_sequence_head(forge, &frame, ctx->urids.urid_time_frame);
+            auto seq = (LV2_Atom_Sequence *) lv2_atom_forge_deref(forge, seqRef);
+            lv2_atom_forge_pop(forge, &frame);
+            write_midi2_events_as_midi1_to_lv2_forge(ctx, forge, buffer->num_frames, src);
+            seq->atom.size = forge->offset - sizeof(LV2_Atom);
+        } else {
+            int32_t timeDivision = *((int *) src);
+            auto seqRef = lv2_atom_forge_sequence_head(forge, &frame,
+                                                       timeDivision > 0x7FFF
+                                                       ? ctx->urids.urid_time_frame
+                                                       : ctx->urids.urid_time_beats);
+            auto seq = (LV2_Atom_Sequence *) lv2_atom_forge_deref(forge, seqRef);
+            lv2_atom_forge_pop(forge, &frame);
+            write_midi_events_to_lv2_forge(ctx, forge, seq, buffer->num_frames, timeDivision, src);
+            seq->atom.size = forge->offset - sizeof(LV2_Atom);
+        }
     }
 
     lilv_instance_run(ctx->instance, buffer->num_frames);
@@ -621,6 +756,9 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
     statics->output_port_uri_node = lilv_new_uri(world, LV2_CORE__OutputPort);
     statics->atom_port_uri_node = lilv_new_uri(world, LV2_ATOM__AtomPort);
     statics->work_interface_uri_node = lilv_new_uri(world, LV2_WORKER__interface);
+    statics->midi2_established_protocol_uri_node = lilv_new_uri(world, LV2_MIDI2__establishedProtocol);
+    statics->atom_supports_uri_node = lilv_new_uri(world, LV2_ATOM__supports);
+    statics->midi2_UMP_uri_node = lilv_new_uri(world, LV2_MIDI2__UMP);
 
     auto allPlugins = lilv_world_get_all_plugins(world);
     assert(lilv_plugins_size(allPlugins) > 0);
@@ -679,6 +817,9 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
             &ctx->features.optionsFeature,
             &ctx->features.threadSafeRestoreFeature,
             &ctx->features.workerFeature,
+            &ctx->features.midi2UmpFeature,
+            &ctx->features.midi2Midi1ProtocolFeature,
+            &ctx->features.midi2Midi2ProtocolFeature,
             nullptr
     };
 
@@ -690,7 +831,6 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
     ctx->instance = instance;
 
     auto map = &ctx->features.urid_map_feature_data;
-    // Fixed value list of URID map. If it breaks then saved state will be lost!
     if (!ctx->urids.urid_atom_sequence_type) {
         ctx->urids.urid_atom_sequence_type = map->map(map->handle, LV2_ATOM__Sequence);
         ctx->urids.urid_midi_event_type = map->map(map->handle, LV2_MIDI__MidiEvent);
@@ -698,11 +838,18 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
         ctx->urids.urid_time_frame = map->map(map->handle, LV2_ATOM__frameTime);
         ctx->urids.urid_atom_float_type = map->map(map->handle, LV2_ATOM__Float);
         ctx->urids.urid_worker_interface = map->map(map->handle, LV2_WORKER__interface);
+        ctx->urids.urid_midi2_midi1_protocol = map->map(map->handle, LV2_MIDI2__midi1Protocol);
+        ctx->urids.urid_midi2_midi2_protocol = map->map(map->handle, LV2_MIDI2__midi2Protocol);
     }
 
     int nPorts = lilv_plugin_get_num_ports(plugin);
+    bool hasUMPPort = false;
     for (int i = 0; i < nPorts; i++) {
-        if (IS_ATOM_PORT(ctx.get(), plugin, lilv_plugin_get_port_by_index(plugin, i))) {
+        const LilvPort* portNode = lilv_plugin_get_port_by_index(plugin, i);
+        if (IS_ATOM_PORT(ctx.get(), plugin, portNode)) {
+            LilvNodes* supports = lilv_port_get_value(plugin, portNode, ctx->statics->atom_supports_uri_node);
+            if (!lilv_nodes_contains(supports, ctx->statics->midi2_UMP_uri_node))
+                hasUMPPort = true;
             ctx->midi_atom_buffers[i] = (LV2_Atom_Sequence *) calloc(ctx->midi_buffer_size, 1);
         }
     }
@@ -715,8 +862,6 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
     }
     lilv_node_free(state_threadSafeRestore);
 
-    // for jalv worker
-    // Create workers if necessary
     if (lilv_plugin_has_extension_data(ctx->plugin, ctx->statics->work_interface_uri_node)) {
         const LV2_Worker_Interface* iface = (const LV2_Worker_Interface*)
                 lilv_instance_get_extension_data(ctx->instance, LV2_WORKER__interface);
@@ -725,6 +870,10 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
         if (ctx->safe_restore) {
             jalv_worker_init(ctx.get(), &ctx->state_worker, iface, false);
         }
+    }
+
+    if (hasUMPPort && lilv_plugin_has_extension_data(ctx->plugin, ctx->statics->midi2_established_protocol_uri_node)) {
+        ctx->ump_established_protocol = (LV2_URID) lilv_instance_get_extension_data(ctx->instance, LV2_MIDI2__establishedProtocol);
     }
 
     return new AndroidAudioPlugin{
