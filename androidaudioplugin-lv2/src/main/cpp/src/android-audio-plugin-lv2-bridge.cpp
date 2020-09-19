@@ -467,14 +467,9 @@ write_midi_events_to_lv2_forge(AAPLV2PluginContext* ctx, LV2_Atom_Forge *forge, 
         if (timeDivision < 0) {
             // deltaTime is a frame number
             int32_t framesPerSecond = ctx->sample_rate;
-            uint8_t framesPerTick = -timeDivision;
-            uint8_t hours = (timecode & 0xFF000000u) >> 24u;
-            uint8_t minutes = (timecode & 0xFF0000u) >> 16u;
-            uint8_t seconds = (timecode & 0xFF00u) >> 8u;
-            uint8_t ticks = timecode & 0xFFu;
-            deltaTime += framesPerSecond * ((hours * 60 + minutes) * 60 + seconds) +
-                         framesPerTick * ticks;
-            lv2_atom_forge_frame_time(forge, deltaTime);
+            deltaTime += ((((timecode & 0xFF000000) >> 24) * 60 + ((timecode & 0xFF0000) >> 16)) * 60 + ((timecode & 0xFF00) >> 8) * timeDivision + (timecode & 0xFF));
+            auto timestamp = 1.0 * deltaTime / -timeDivision * framesPerSecond;
+            lv2_atom_forge_frame_time(forge, timestamp);
         } else {
             // deltaTime is a beat based time
             deltaTime += timecode;
