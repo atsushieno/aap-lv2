@@ -6,7 +6,7 @@
 #define JR_TIMESTAMP_TICKS_PER_SECOND 31250
 
 #ifdef __cplusplus
-namespace cmidi2 {
+extern "C" {
 #endif
 
 enum cmidi2_status_code {
@@ -45,9 +45,9 @@ enum cmidi2_ci_protocol_bytes {
 
 enum cmidi2_ci_protocol_values {
     CMIDI2_PROTOCOL_TYPE_MIDI1 = 1,
-    CMIDI2_PROTOCOL_TYPE_CMIDI2 = 2,
+    CMIDI2_PROTOCOL_TYPE_MIDI2 = 2,
     CMIDI2_PROTOCOL_VERSION_MIDI1 = 0,
-    CMIDI2_PROTOCOL_VERSION_CMIDI2_V1 = 0,
+    CMIDI2_PROTOCOL_VERSION_MIDI2_V1 = 0,
 };
 
 enum cmidi2_ci_protocol_extensions {

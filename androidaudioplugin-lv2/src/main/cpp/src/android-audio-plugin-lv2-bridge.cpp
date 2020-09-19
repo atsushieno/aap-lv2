@@ -35,8 +35,6 @@
 
 #define JUCEAAP_LOG_PERF 0
 
-using namespace cmidi2;
-
 namespace aaplv2bridge {
 
 int log_vprintf(LV2_Log_Handle, LV2_URID type, const char *fmt, va_list ap) {
@@ -415,80 +413,80 @@ void aap_lv2_plugin_activate(AndroidAudioPlugin *plugin) {
 void
 write_midi_events_to_lv2_forge(AAPLV2PluginContext* ctx, LV2_Atom_Forge *forge, LV2_Atom_Sequence *, int32_t numFrames,
                                    int32_t timeDivision, void *src) {
-        assert(src != nullptr);
-        assert(forge != nullptr);
+    assert(src != nullptr);
+    assert(forge != nullptr);
 
-        int32_t srcN = 8;
+    int32_t srcN = 8;
 
-        auto csrc = (uint8_t *) src;
-        int32_t srcEnd = *((int32_t *) src + 1) + 8; // offset
+    auto csrc = (uint8_t *) src;
+    int32_t srcEnd = *((int32_t *) src + 1) + 8; // offset
 
-        uint8_t running_status = 0;
+    uint8_t running_status = 0;
 
-        uint64_t deltaTime = 0;
+    uint64_t deltaTime = 0;
 
-        while (srcN < srcEnd) {
-            // MIDI Event message
-            // Atom Event header
-            uint64_t timecode = 0;
-            uint digits = 0;
-            while (csrc[srcN] >= 0x80 && srcN < srcEnd) // variable length
-                timecode += ((uint32_t) (csrc[srcN++] - 0x80)) << (7 * digits++);
-            if (srcN == srcEnd)
-                break; // invalid data
-            timecode += (csrc[srcN++] << (7 * digits));
+    while (srcN < srcEnd) {
+        // MIDI Event message
+        // Atom Event header
+        uint64_t timecode = 0;
+        uint digits = 0;
+        while (csrc[srcN] >= 0x80 && srcN < srcEnd) // variable length
+            timecode += ((uint32_t) (csrc[srcN++] - 0x80)) << (7 * digits++);
+        if (srcN == srcEnd)
+            break; // invalid data
+        timecode += (csrc[srcN++] << (7 * digits));
 
-            uint8_t statusByte = csrc[srcN] >= 0x80 ? csrc[srcN] : running_status;
-            running_status = statusByte;
-            uint8_t eventType = statusByte & 0xF0u;
-            uint32_t midiEventSize = 3;
-            int sysexPos = srcN;
-            switch (eventType) {
-                case 0xF0:
-                    midiEventSize = 2; // F0 + F7
-                    while (csrc[sysexPos++] != 0xF7 && sysexPos < srcEnd)
-                        midiEventSize++;
-                    break;
-                case 0xC0:
-                case 0xD0:
-                case 0xF1:
-                case 0xF3:
-                case 0xF9:
-                    midiEventSize = 2;
-                    break;
-                case 0xF6:
-                case 0xF7:
-                    midiEventSize = 1;
-                    break;
-                default:
-                    if (eventType > 0xF8)
-                        midiEventSize = 1;
-                    break;
-            }
-
-            if (timeDivision < 0) {
-                // deltaTime is a frame number
-                int32_t framesPerSecond = ctx->sample_rate;
-                uint8_t framesPerTick = -timeDivision;
-                uint8_t hours = (timecode & 0xFF000000u) >> 24u;
-                uint8_t minutes = (timecode & 0xFF0000u) >> 16u;
-                uint8_t seconds = (timecode & 0xFF00u) >> 8u;
-                uint8_t ticks = timecode & 0xFFu;
-                deltaTime += framesPerSecond * ((hours * 60 + minutes) * 60 + seconds) +
-                             framesPerTick * ticks;
-                lv2_atom_forge_frame_time(forge, deltaTime);
-            } else {
-                // deltaTime is a beat based time
-                deltaTime += timecode;
-                lv2_atom_forge_beat_time(forge, (double) deltaTime / timeDivision * 120 / 60);
-            }
-            lv2_atom_forge_raw(forge, &midiEventSize, sizeof(int));
-            lv2_atom_forge_raw(forge, &ctx->urids.urid_midi_event_type, sizeof(int));
-            lv2_atom_forge_raw(forge, csrc + srcN, midiEventSize);
-            lv2_atom_forge_pad(forge, midiEventSize);
-            srcN += midiEventSize;
+        uint8_t statusByte = csrc[srcN] >= 0x80 ? csrc[srcN] : running_status;
+        running_status = statusByte;
+        uint8_t eventType = statusByte & 0xF0u;
+        uint32_t midiEventSize = 3;
+        int sysexPos = srcN;
+        switch (eventType) {
+        case 0xF0:
+            midiEventSize = 2; // F0 + F7
+            while (csrc[sysexPos++] != 0xF7 && sysexPos < srcEnd)
+                midiEventSize++;
+            break;
+        case 0xC0:
+        case 0xD0:
+        case 0xF1:
+        case 0xF3:
+        case 0xF9:
+            midiEventSize = 2;
+            break;
+        case 0xF6:
+        case 0xF7:
+            midiEventSize = 1;
+            break;
+        default:
+            if (eventType > 0xF8)
+                midiEventSize = 1;
+            break;
         }
+
+        if (timeDivision < 0) {
+            // deltaTime is a frame number
+            int32_t framesPerSecond = ctx->sample_rate;
+            uint8_t framesPerTick = -timeDivision;
+            uint8_t hours = (timecode & 0xFF000000u) >> 24u;
+            uint8_t minutes = (timecode & 0xFF0000u) >> 16u;
+            uint8_t seconds = (timecode & 0xFF00u) >> 8u;
+            uint8_t ticks = timecode & 0xFFu;
+            deltaTime += framesPerSecond * ((hours * 60 + minutes) * 60 + seconds) +
+                         framesPerTick * ticks;
+            lv2_atom_forge_frame_time(forge, deltaTime);
+        } else {
+            // deltaTime is a beat based time
+            deltaTime += timecode;
+            lv2_atom_forge_beat_time(forge, (double) deltaTime / timeDivision * 120 / 60);
+        }
+        lv2_atom_forge_raw(forge, &midiEventSize, sizeof(int));
+        lv2_atom_forge_raw(forge, &ctx->urids.urid_midi_event_type, sizeof(int));
+        lv2_atom_forge_raw(forge, csrc + srcN, midiEventSize);
+        lv2_atom_forge_pad(forge, midiEventSize);
+        srcN += midiEventSize;
     }
+}
 
 void
 write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, LV2_Atom_Forge *forge, int32_t timeDivision, void *src) {
@@ -662,6 +660,8 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
     }
 
     lilv_instance_run(ctx->instance, buffer->num_frames);
+
+    // FIXME: there should be another set of converters that transforms LV2 MIDI outputs into AAP MIDI stream (either 1.0 or 2.0)
 
 #if JUCEAAP_LOG_PERF
     clock_gettime(CLOCK_REALTIME, &timeSpecEnd);
