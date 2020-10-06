@@ -13,7 +13,7 @@ android {
 
         externalNativeBuild {
             cmake {
-                arguments "-DENABLE_LTO=off", "-DSFIZZ_JACK=off", "-DSFIZZ_RENDER=off", "-DSFIZZ_SHARED=off", "-DSFIZZ_STATIC_LIBSNDFILE=on"
+                arguments "-DENABLE_LTO=off", "-DSFIZZ_VST=off", "-DSFIZZ_LV2_UI=off", "-DSFIZZ_JACK=off", "-DSFIZZ_RENDER=off", "-DSFIZZ_SHARED=off", "-DSFIZZ_STATIC_LIBSNDFILE=on"
             }
         }
 

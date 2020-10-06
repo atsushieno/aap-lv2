@@ -13,6 +13,11 @@
       <port direction="input" default="440.000000" minimum="300.000000" maximum="500.000000" content="other" name="Tuning frequency" />
       <port direction="input" default="0.000000" minimum="0.000000" maximum="1.000000" content="other" name="Stretched tuning" />
       <port direction="output" default="0.000000" minimum="0.000000" maximum="256.000000" content="other" name="Active voices" />
+      <port direction="output" default="0.000000" minimum="0.000000" maximum="65535.000000" content="other" name="Number of curves" />
+      <port direction="output" default="0.000000" minimum="0.000000" maximum="65535.000000" content="other" name="Number of masters" />
+      <port direction="output" default="0.000000" minimum="0.000000" maximum="65535.000000" content="other" name="Number of groups" />
+      <port direction="output" default="0.000000" minimum="0.000000" maximum="65535.000000" content="other" name="Number of regions" />
+      <port direction="output" default="0.000000" minimum="0.000000" maximum="65535.000000" content="other" name="Number of samples" />
     </ports>
   </plugin>
 </plugins>
