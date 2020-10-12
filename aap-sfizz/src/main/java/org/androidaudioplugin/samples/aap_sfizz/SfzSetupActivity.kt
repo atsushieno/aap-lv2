@@ -19,19 +19,6 @@ class SfzSetupActivity : AppCompatActivity() {
             if (!dst.exists())
                 dst.mkdirs()
             xcopyFromAssetsToLocalStorage (dst, "lv2")
-
-            for (adir in this.assets.list("lv2")!!) {
-                Log.d("SfzSetupActivity", "- " + adir)
-                for (asset in this.assets.list("lv2/" + adir)!!) {
-                    Log.d("SfzSetupActivity", "  - " + asset)
-                    for (asset2 in this.assets.list("lv2/" + adir + "/" + asset)!!) {
-                        Log.d("SfzSetupActivity", "    - " + asset2)
-                        for (asset3 in this.assets.list("lv2/" + adir + "/" + asset + "/" + asset2)!!) {
-                            Log.d("SfzSetupActivity", "      - " + asset3)
-                        }
-                    }
-                }
-            }
         }
     }
 
