@@ -30,7 +30,6 @@ android {
             path "CMakeLists.txt"
         }
     }
-    ndkVersion = '21.2.6472646'
     packagingOptions{
         //doNotStrip "*/*/*.so" // debuggable!
     }

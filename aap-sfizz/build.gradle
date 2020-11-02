@@ -39,7 +39,6 @@ android {
             path "../dependencies/sfizz/CMakeLists.txt"
         }
     }
-    ndkVersion = '21.2.6472646'
 
     aaptOptions {
         noCompress 'wav'
