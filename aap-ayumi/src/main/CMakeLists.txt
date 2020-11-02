@@ -5,7 +5,7 @@
 cmake_minimum_required(VERSION 3.6.0)
 
 
-get_filename_component (AAPDIR "${CMAKE_CURRENT_LIST_DIR}/../../../../android-audio-plugin-framework" ABSOLUTE)
+get_filename_component (AAPDIR "${CMAKE_CURRENT_LIST_DIR}/../../../dependencies/android-audio-plugin-framework" ABSOLUTE)
 
 if (ANDROID)
     get_filename_component (LV2_DEP_DIST "${CMAKE_CURRENT_LIST_DIR}/../../../dependencies/lv2-deps/dist/${CMAKE_ANDROID_ARCH_ABI}" ABSOLUTE)

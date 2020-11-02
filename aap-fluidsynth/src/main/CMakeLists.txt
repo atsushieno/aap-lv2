@@ -5,7 +5,7 @@
 cmake_minimum_required(VERSION 3.6.0)
 
 
-get_filename_component (AAPDIR "${CMAKE_CURRENT_LIST_DIR}/../../../../android-audio-plugin-framework" ABSOLUTE)
+get_filename_component (AAPDIR "${CMAKE_CURRENT_LIST_DIR}/../../../dependencies/android-audio-plugin-framework" ABSOLUTE)
 
 if (ANDROID)
     get_filename_component (LV2_DEP_DIST "${CMAKE_CURRENT_LIST_DIR}/../../../dependencies/lv2-deps/dist/${CMAKE_ANDROID_ARCH_ABI}" ABSOLUTE)
@@ -35,8 +35,8 @@ add_library ( # Specifies the name of the library.
         )
 
 if (ANDROID)
-    get_filename_component(AAP_ANDROID_PLAT_INCLUDE_DIR ${CMAKE_CURRENT_LIST_DIR}/../../../../android-audio-plugin-framework/native/androidaudioplugin/android/include ABSOLUTE)
-    get_filename_component(AAP_REF_LIB_DIR ${CMAKE_CURRENT_LIST_DIR}/../../../../android-audio-plugin-framework/java/androidaudioplugin/build/intermediates/library_jni/debug/jni/${CMAKE_ANDROID_ARCH_ABI} ABSOLUTE)
+    get_filename_component(AAP_ANDROID_PLAT_INCLUDE_DIR ${CMAKE_CURRENT_LIST_DIR}/../../../dependencies/android-audio-plugin-framework/native/androidaudioplugin/android/include ABSOLUTE)
+    get_filename_component(AAP_REF_LIB_DIR ${CMAKE_CURRENT_LIST_DIR}/../../../dependencies/android-audio-plugin-framework/java/androidaudioplugin/build/intermediates/library_jni/debug/jni/${CMAKE_ANDROID_ARCH_ABI} ABSOLUTE)
     target_include_directories (aap-fluidsynth PUBLIC "${AAP_ANDROID_PLAT_INCLUDE_DIR}")
     target_link_directories (aap-fluidsynth PUBLIC "${AAP_REF_LIB_DIR}")
 endif (ANDROID)

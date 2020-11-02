@@ -13,12 +13,6 @@ jobs:
       uses: actions/checkout@v1
       with:
         submodules: recursive
-    - name: checkout
-      uses: actions/checkout@v1
-      with:
-        repository: atsushieno/android-audio-plugin-framework
-        ref: main
-        submodules: recursive
     - name: apt update
       run: |
         sudo apt-get update
@@ -43,12 +37,6 @@ jobs:
     - name: checkout
       uses: actions/checkout@v1
       with:
-        submodules: recursive
-    - name: checkout
-      uses: actions/checkout@v1
-      with:
-        repository: atsushieno/android-audio-plugin-framework
-        ref: main
         submodules: recursive
     - name: set up JDK 1.8
       uses: actions/setup-java@v1

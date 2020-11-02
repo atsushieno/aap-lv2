@@ -4,7 +4,7 @@
 
 cmake_minimum_required(VERSION 3.5.1)
 
-get_filename_component (AAPDIR "${CMAKE_CURRENT_LIST_DIR}/../../../../../android-audio-plugin-framework" ABSOLUTE)
+get_filename_component (AAPDIR "${CMAKE_CURRENT_LIST_DIR}/../../../../dependencies/android-audio-plugin-framework" ABSOLUTE)
 
 # Android Studio is stupid. It tries to index your home directory if it references ancestor directories.
 # https://issuetracker.google.com/issues/159719671
