@@ -38,7 +38,10 @@ if (ANDROID)
     get_filename_component(AAP_ANDROID_PLAT_INCLUDE_DIR ${CMAKE_CURRENT_LIST_DIR}/../../../dependencies/android-audio-plugin-framework/native/androidaudioplugin/android/include ABSOLUTE)
     get_filename_component(AAP_REF_LIB_DIR ${CMAKE_CURRENT_LIST_DIR}/../../../dependencies/android-audio-plugin-framework/java/androidaudioplugin/build/intermediates/library_jni/debug/jni/${CMAKE_ANDROID_ARCH_ABI} ABSOLUTE)
     target_include_directories (aap-fluidsynth PUBLIC "${AAP_ANDROID_PLAT_INCLUDE_DIR}")
-    target_link_directories (aap-fluidsynth PUBLIC "${AAP_REF_LIB_DIR}")
+    target_link_directories (aap-fluidsynth
+            PUBLIC
+            "../../../dependencies/fluidsynth-deps/dist/${CMAKE_ANDROID_ARCH_ABI}"
+            "${AAP_REF_LIB_DIR}")
 endif (ANDROID)
 
 target_include_directories (aap-fluidsynth
