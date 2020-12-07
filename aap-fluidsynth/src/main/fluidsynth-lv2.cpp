@@ -16,7 +16,7 @@
 #define FLUIDSYNTH_LV2_ATOM_INPUT_PORT 0
 #define FLUIDSYNTH_LV2_AUDIO_OUT_LEFT 1
 #define FLUIDSYNTH_LV2_AUDIO_OUT_RIGHT 2
-#define DEFAULT_SOUNDFONTS {"FluidR3Mono_GM.sf3"}
+#define DEFAULT_SOUNDFONTS {"/FluidR3Mono_GM.sf3"}
 
 typedef struct {
 	LV2_URID_Map *urid_map;
