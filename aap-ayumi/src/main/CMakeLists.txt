@@ -4,17 +4,30 @@
 
 cmake_minimum_required(VERSION 3.6.0)
 
-
-get_filename_component (AAPDIR "${CMAKE_CURRENT_LIST_DIR}/../../../dependencies/android-audio-plugin-framework" ABSOLUTE)
+project(ayumi-lv2 VERSION 0.1 LANGUAGES C)
 
 if (ANDROID)
-    get_filename_component (LV2_DEP_DIST "${CMAKE_CURRENT_LIST_DIR}/../../../dependencies/lv2-deps/dist/${CMAKE_ANDROID_ARCH_ABI}" ABSOLUTE)
+
+get_filename_component (LV2_DEP_DIST "${CMAKE_CURRENT_LIST_DIR}/symlinked-dist/${CMAKE_ANDROID_ARCH_ABI}" ABSOLUTE)
+set (ENV{PKG_CONFIG_PATH} "${LV2_DEP_DIST}/lib/pkgconfig/")
+
 else (ANDROID)
-    get_filename_component (LV2_DEP_DIST "${AAPDIR}/dependencies/lv2-desktop/dist" ABSOLUTE)
+
+get_filename_component (AAPDIR "${CMAKE_CURRENT_LIST_DIR}/../../../../dependencies/android-audio-plugin-framework" ABSOLUTE)
+get_filename_component (LV2_DEP_DIST "${AAPDIR}/dependencies/lv2-desktop/dist" ABSOLUTE)
+
+set (androidaudioplugin-lv2_INCLUDES
+        "${AAPDIR}/native/plugin-api/include"
+        "${AAPDIR}/native/androidaudioplugin/core/include")
+
 endif (ANDROID)
 
+find_package ( PkgConfig REQUIRED )
+
+pkg_search_module ( LV2 REQUIRED lv2>=1.18.0 )
+
 set (ayumi-lv2_INCLUDES
-        ${CMAKE_CURRENT_LIST_DIR}/../../../dependencies/lv2-deps/dist/${CMAKE_ANDROID_ARCH_ABI}/include
+        ${LV2_INCLUDE_DIRS}
         )
 
 set (ayumi-lv2_SOURCES
@@ -44,6 +57,13 @@ target_compile_options(ayumi-lv2
         -Wshadow
         -Wshadow-field
         )
+
+if (ANDROID)
+    find_package (androidaudioplugin REQUIRED CONFIG)
+    set (ayumi-lv2_LIBS android log androidaudioplugin::androidaudioplugin)
+else (ANDROID)
+    set (ayumi-lv2_LIBS androidaudioplugin)
+endif (ANDROID)
 
 target_link_libraries(ayumi-lv2 android log)
 

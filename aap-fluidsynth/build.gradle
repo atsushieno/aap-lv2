@@ -52,7 +52,7 @@ android {
 
 dependencies {
     implementation project(':androidaudioplugin-lv2')
-    implementation project(':androidaudioplugin-ui-androidx')
+    implementation 'org.androidaudioplugin:androidaudioplugin-ui-androidx:0.6.1'
 
     testImplementation 'junit:junit:4.13.1'
     androidTestImplementation 'androidx.test.ext:junit:1.1.2'

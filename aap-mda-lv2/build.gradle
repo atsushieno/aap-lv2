@@ -15,7 +15,11 @@ android {
 
         externalNativeBuild {
             cmake {
-                arguments "-DANDROID_STL=c++_shared" // required by LV2 sdks
+                // https://github.com/google/prefab/blob/bccf5a6a75b67add30afbb6d4f7a7c50081d2d86/api/src/main/kotlin/com/google/prefab/api/Android.kt#L243
+                arguments "-DANDROID_STL=c++_shared"
+
+                // Enable this section if you want to debug native code using AddressSanitizer
+                //arguments "-DANDROID_ARM_MODE=arm", "-DANDROID_STL=c++_shared"
                 //cppFlags "-fsanitize=address -fno-omit-frame-pointer"
             }
         }
@@ -41,7 +45,7 @@ android {
 
 dependencies {
     implementation project(':androidaudioplugin-lv2')
-    implementation project(':androidaudioplugin-ui-androidx')
+    implementation 'org.androidaudioplugin:androidaudioplugin-ui-androidx:0.6.3'
 
     testImplementation 'junit:junit:4.13.1'
     androidTestImplementation 'androidx.test.ext:junit:1.1.2'

@@ -29,6 +29,9 @@ dependencies/lv2-deps/dist/stamp: android-lv2-binaries.zip
 	unzip android-lv2-binaries -d dependencies/lv2-deps/
 	./rewrite-pkg-config-paths.sh lv2-deps
 	ln -s `pwd`/dependencies/lv2-deps/dist androidaudioplugin-lv2/src/main/cpp/symlinked-dist
+	ln -s `pwd`/dependencies/lv2-deps/dist aap-ayumi/src/main/symlinked-dist
+	ln -s `pwd`/dependencies/lv2-deps/dist aap-fluidsynth/src/main/symlinked-dist
+	ln -s `pwd`/dependencies/lv2-deps/dist aap-sfizz/src/main/symlinked-dist
 	touch dependencies/lv2-deps/dist/stamp
 
 android-lv2-binaries.zip:

@@ -8,13 +8,21 @@ android {
     compileSdkVersion 30
 
     defaultConfig {
+        applicationId "org.androidaudioplugin.aap_ayumi"
         minSdkVersion 29
         targetSdkVersion 30
         versionCode 1
         versionName "1.0"
 
+
         externalNativeBuild {
             cmake {
+                // https://github.com/google/prefab/blob/bccf5a6a75b67add30afbb6d4f7a7c50081d2d86/api/src/main/kotlin/com/google/prefab/api/Android.kt#L243
+                arguments "-DANDROID_STL=c++_shared"
+
+                // Enable this section if you want to debug native code using AddressSanitizer
+                //arguments "-DANDROID_ARM_MODE=arm", "-DANDROID_STL=c++_shared"
+                //cppFlags "-fsanitize=address -fno-omit-frame-pointer"
             }
         }
 
@@ -28,6 +36,11 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+
+    buildFeatures {
+        prefab true
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
@@ -48,8 +61,9 @@ android {
 }
 
 dependencies {
+    implementation 'org.androidaudioplugin:androidaudioplugin:0.6.3'
     implementation project(':androidaudioplugin-lv2')
-    implementation project(':androidaudioplugin-ui-androidx')
+    implementation 'org.androidaudioplugin:androidaudioplugin-ui-androidx:0.6.3'
 
     testImplementation 'junit:junit:4.13.1'
     androidTestImplementation 'androidx.test.ext:junit:1.1.2'

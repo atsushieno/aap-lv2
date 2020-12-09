@@ -1,4 +1,2 @@
 rootProject.name = 'aap-lv2'
-include ':androidaudioplugin', ':androidaudioplugin-ui-androidx', ':androidaudioplugin-lv2', ':aap-mda-lv2', ':aap-sfizz', ':aap-guitarix', ':aap-ayumi', ':aap-fluidsynth'
-project(':androidaudioplugin').projectDir = new File('dependencies/android-audio-plugin-framework/java/androidaudioplugin')
-project(':androidaudioplugin-ui-androidx').projectDir = new File('dependencies/android-audio-plugin-framework/java/androidaudioplugin-ui-androidx')
+include ':androidaudioplugin-lv2', ':aap-mda-lv2', ':aap-sfizz', ':aap-guitarix', ':aap-ayumi', ':aap-fluidsynth'
