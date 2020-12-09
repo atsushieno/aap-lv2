@@ -42,7 +42,7 @@ dependencies/fluidsynth-deps/dist/stamp: android-fluidsynth-dist.zip
 	touch dependencies/fluidsynth-deps/dist/stamp
 
 android-fluidsynth-dist.zip:
-	wget https://542-95304991-gh.circle-artifacts.com/0/android-dist.zip -O android-fluidsynth-dist.zip
+	wget https://581-95304991-gh.circle-artifacts.com/0/android-dist.zip -O android-fluidsynth-dist.zip
 
 get-sfizz-deps: dependencies/sfizz-deps/dist/stamp
 
