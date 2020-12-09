@@ -5,11 +5,13 @@
 #include <lv2/atom/atom.h>
 #include <lv2/atom/util.h>
 #include <lv2/urid/urid.h>
+#include <lv2/log/log.h>
 #include <lv2/midi/midi.h>
 #include <lv2/state/state.h>
 #include "fluidsynth.h"
 #include "fluid_androidasset.h"
 #include <jni.h>
+#include <string>
 #include "aap/android-context.h"
 
 #define FLUIDSYNTH_LV2_URI "https://github.com/atsushieno/aap-fluidsynth"
@@ -41,10 +43,13 @@ LV2_Handle fluidsynth_lv2_instantiate(
 	handle->bundle_path = strdup(bundle_path);
 
 	handle->urid_map = NULL;
+	LV2_Log_Log *log = NULL;
 	for (int i = 0; features[i]; i++) {
 		const LV2_Feature* f = features[i];
 		if (!strcmp(f->URI, LV2_URID__map))
 			handle->urid_map = (LV2_URID_Map*) f->data;
+		if (!strcmp(f->URI, LV2_LOG__log))
+		    log = (LV2_Log_Log*) f->data;
 	}
 	assert(handle->urid_map);
 	handle->midi_event_uri = handle->urid_map->map(handle->urid_map->handle, LV2_MIDI__MidiEvent);
@@ -67,10 +72,16 @@ LV2_Handle fluidsynth_lv2_instantiate(
 
     const char* defaultSoundfonts[] DEFAULT_SOUNDFONTS;
     int sfid;
-    for (auto sf : defaultSoundfonts)
+    for (auto sf : defaultSoundfonts) {
         sfid = fluid_synth_sfload(synth, sf, 0);
+        if (sfid < 0 && log) {
+            std::string msg{"unable to open soundfont: "};
+            log->printf(log->handle, 0, "%s", (msg + sf).c_str());
+        }
+    }
 
-    fluid_synth_program_select(synth, 0, sfid, 0, 0); // initialize prog/bank to 0.
+    auto status = fluid_synth_program_select(synth, 0, sfid, 0, 0); // initialize prog/bank to 0.
+    assert(status == FLUID_OK);
 
     // it is what FluidPlug does - boostrap synth engine
     float l[1024];
