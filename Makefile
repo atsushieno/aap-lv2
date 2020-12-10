@@ -4,6 +4,7 @@ ABIS_SIMPLE= x86 x86_64 armeabi-v7a arm64-v8a
 all: build-all
 
 build-all: \
+        prepare-aap-core \
 	get-lv2-deps \
 	import-lv2-deps \
 	get-fluidsynth-deps \
@@ -12,6 +13,9 @@ build-all: \
 	get-guitarix-deps \
 	import-guitarix-deps \
 	build-java
+
+prepare-aap-core:
+	cd dependencies/android-audio-plugin-framework && make setup-dummy-prefab-headers-dir
 
 patch-sfizz: dependencies/sfizz/patch.stamp
 

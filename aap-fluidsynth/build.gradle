@@ -45,6 +45,13 @@ android {
         noCompress 'sf3'
     }
 
+    // AGP, Android Lint, and/or appcompat package is stupid and results in their own error to block our builds.
+    // > androidx.appcompat.AppCompatIssueRegistry in /home/runner/.gradle/caches/transforms-2/files-2.1/2dfc7e2f9c4e61e976acb8f06b4a9014/appcompat-1.2.0/jars/lint.jar does not specify a vendor; see IssueRegistry#vendor
+    // This is a suggested workaround (by AGP or Gradle)
+    lintOptions {
+        abortOnError false
+    }
+
     packagingOptions {
         //doNotStrip "*/*/*.so" // debuggable!
     }
