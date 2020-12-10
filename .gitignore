@@ -17,6 +17,7 @@
 *.lv2
 build
 cmake-build-debug
+symlinked-dist
 android-lv2-binaries.zip
 android-fluidsynth-dist.zip
 android-libsndfile-binaries.zip
