@@ -15,7 +15,7 @@ build-all: \
 	build-java
 
 build-aap-core:
-	cd dependencies/android-audio-plugin-framework && make
+	cd dependencies/android-audio-plugin-framework && make all-no-desktop
 
 patch-sfizz: dependencies/sfizz/patch.stamp
 
