@@ -22,7 +22,7 @@ jobs:
         java-version: 11
     - name: apt install
       run: |
-        echo y | sudo apt-get install pkg-config cmake ninja-build doxygen liblilv-dev
+        echo y | sudo apt-get install doxygen libgrpc++-dev libgrpc-dev libprotobuf-dev graphviz cmake ninja-build liblilv-dev
     - name: stupid NDK setup workaround for GitHub Actions
       run: sudo chmod 777 /usr/local/lib/android/sdk/ && mkdir -p /usr/local/lib/android/sdk/ndk
     - name: create local.properties
@@ -44,7 +44,7 @@ jobs:
         java-version: 11
     - name: install deps
       run: |
-        brew install doxygen pkg-config cmake ninja lilv
+        brew install doxygen ninja graphviz lilv
     - name: create local.properties
       run: echo "cmake.dir=/usr/local" > local.properties
     - name: build
