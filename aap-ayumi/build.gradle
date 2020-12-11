@@ -37,9 +37,12 @@ android {
         }
     }
 
+    // FIXME: enable these sections once we migrated to prefab.
+    /*
     buildFeatures {
         prefab true
     }
+    */
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
@@ -68,7 +71,6 @@ android {
 }
 
 dependencies {
-    implementation 'org.androidaudioplugin:androidaudioplugin:0.6.3'
     implementation project(':androidaudioplugin-lv2')
     implementation 'org.androidaudioplugin:androidaudioplugin-ui-androidx:0.6.3'
 

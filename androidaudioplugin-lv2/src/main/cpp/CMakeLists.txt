@@ -11,6 +11,15 @@ project(androidaudioplugin-lv2 VERSION 0.1 LANGUAGES CXX)
 # Now it references descendant directory via symlink instead.
 if (ANDROID)
 
+if (NOT (BUILD_WITH_PREFAB))
+get_filename_component (AAPDIR "${CMAKE_CURRENT_LIST_DIR}/../../../../dependencies/android-audio-plugin-framework" ABSOLUTE)
+set (androidaudioplugin-lv2_INCLUDES
+		"${AAPDIR}/native/plugin-api/include"
+		"${AAPDIR}/native/androidaudioplugin/core/include")
+link_directories (
+		"${AAPDIR}/java/androidaudioplugin/build/intermediates/merged_native_libs/debug/out/lib/${CMAKE_ANDROID_ARCH_ABI}"
+)
+endif ()
 get_filename_component (LV2_DEP_DIST "${CMAKE_CURRENT_LIST_DIR}/symlinked-dist/${CMAKE_ANDROID_ARCH_ABI}" ABSOLUTE)
 set (ENV{PKG_CONFIG_PATH} "${LV2_DEP_DIST}/lib/pkgconfig/")
 
@@ -70,12 +79,20 @@ add_library (androidaudioplugin-lv2 SHARED ${androidaudioplugin-lv2_SOURCES})
 # set LIBS
 
 if (ANDROID)
-	find_package (androidaudioplugin REQUIRED CONFIG)
-	set (androidaudioplugin-lv2_LIBS
-			android
-			log
-			${LILV_LIBRARIES}
-			androidaudioplugin::androidaudioplugin)
+	if (BUILD_WITH_PREFAB)
+		find_package (androidaudioplugin REQUIRED CONFIG)
+		set (androidaudioplugin-lv2_LIBS
+				android
+				log
+				${LILV_LIBRARIES}
+				androidaudioplugin::androidaudioplugin)
+	else (BUILD_WOTH_PREFAB)
+		set (androidaudioplugin-lv2_LIBS
+				android
+				log
+				${LILV_LIBRARIES}
+				androidaudioplugin)
+	endif (BUILD_WITH_PREFAB)
 else (ANDROID)
 	set (androidaudioplugin-lv2_LIBS
 			${LILV_LIBRARIES}

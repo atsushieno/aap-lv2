@@ -41,6 +41,12 @@ android {
             path "../dependencies/sfizz/CMakeLists.txt"
         }
     }
+    // FIXME: enable these sections once we migrated to prefab.
+    /*
+    buildFeatures {
+        prefab true
+    }
+    */
 
     aaptOptions {
         noCompress 'wav'

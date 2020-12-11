@@ -40,6 +40,12 @@ android {
             path "src/main/CMakeLists.txt"
         }
     }
+    // FIXME: enable these sections once we migrated to prefab.
+    /*
+    buildFeatures {
+        prefab true
+    }
+    */
 
     aaptOptions {
         noCompress 'sf3'

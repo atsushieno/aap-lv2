@@ -58,12 +58,14 @@ target_compile_options(ayumi-lv2
         -Wshadow-field
         )
 
+if (BUILD_WITH_PREFAB)
 if (ANDROID)
     find_package (androidaudioplugin REQUIRED CONFIG)
     set (ayumi-lv2_LIBS android log androidaudioplugin::androidaudioplugin)
 else (ANDROID)
     set (ayumi-lv2_LIBS androidaudioplugin)
 endif (ANDROID)
-
+target_link_libraries(ayumi-lv2 ${ayumi-lv2_LIBS})
+else (BUILD_WITH_PREFAB)
 target_link_libraries(ayumi-lv2 android log)
-
+endif (BUILD_WITH_PREFAB)

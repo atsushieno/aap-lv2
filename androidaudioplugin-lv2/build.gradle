@@ -31,9 +31,22 @@ android {
         }
     }
 
+    // FIXME: enable these sections once we migrated to prefab.
+    /*
     buildFeatures {
         prefab true
+        prefabPublishing true
     }
+    // Workaround for https://issuetracker.google.com/issues/168777344#comment5
+    packagingOptions {
+        exclude '**.so'
+    }
+    prefab {
+        androidaudioplugin-lv2 {
+            name 'androidaudioplugin-lv2'
+        }
+    }
+    */
 
     externalNativeBuild {
         cmake {

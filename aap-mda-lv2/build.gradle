@@ -35,6 +35,12 @@ android {
             path "CMakeLists.txt"
         }
     }
+    // FIXME: enable these sections once we migrated to prefab.
+    /*
+    buildFeatures {
+        prefab true
+    }
+    */
     packagingOptions{
         //doNotStrip "*/*/*.so" // debuggable!
     }
