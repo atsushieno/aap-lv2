@@ -14,6 +14,12 @@ build-all: \
 	import-guitarix-deps \
 	build-java
 
+build-non-app: \
+        build-aap-core \
+	get-lv2-deps \
+	import-lv2-deps \
+	build-java-core
+
 build-aap-core:
 	cd dependencies/android-audio-plugin-framework && make all-no-desktop
 
@@ -93,4 +99,7 @@ build-lv2-importer:
 
 build-java:
 	ANDROID_SDK_ROOT=$(ANDROID_SDK_ROOT) ./gradlew build
+ 
+build-java-core:
+	ANDROID_SDK_ROOT=$(ANDROID_SDK_ROOT) ./gradlew :androidaudioplugin-lv2:build
  
