@@ -79,9 +79,3 @@ jobs:
       with:
         name: aap-sfizz-debug.apk
         path: ./aap-sfizz/build/outputs/apk/debug/aap-sfizz-debug.apk
-    - name: upload artifact
-      if: success()
-      uses: actions/upload-artifact@v2
-      with:
-        name: aap-fluidsynth-debug.apk
-        path: ./aap-fluidsynth/build/outputs/apk/debug/aap-fluidsynth-debug.apk
