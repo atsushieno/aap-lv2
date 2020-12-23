@@ -1,2 +1,2 @@
 rootProject.name = 'aap-lv2'
-include ':androidaudioplugin-lv2', ':aap-mda-lv2', ':aap-sfizz', ':aap-guitarix', ':aap-ayumi'
+include ':androidaudioplugin-lv2', ':aap-mda-lv2', ':aap-guitarix', ':aap-ayumi'

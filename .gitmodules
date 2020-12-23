@@ -1,6 +1,3 @@
-[submodule "dependencies/sfizz"]
-	path = dependencies/sfizz
-	url = https://github.com/sfztools/sfizz.git
 [submodule "dependencies/ayumi-lv2"]
 	path = dependencies/ayumi-lv2
 	url = https://github.com/atsushieno/ayumi-lv2.git

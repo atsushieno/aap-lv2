@@ -7,8 +7,6 @@ build-all: \
         build-aap-core \
 	get-lv2-deps \
 	import-lv2-deps \
-	get-sfizz-deps \
-	patch-sfizz \
 	get-guitarix-deps \
 	import-guitarix-deps \
 	build-java
@@ -22,13 +20,6 @@ build-non-app: \
 build-aap-core:
 	cd dependencies/android-audio-plugin-framework && make all-no-desktop
 
-patch-sfizz: dependencies/sfizz/patch.stamp
-
-dependencies/sfizz/patch.stamp:
-	cd dependencies/sfizz && \
-		patch -i ../../sfizz-android.patch -p1 && \
-		touch patch.stamp || exit 1
-
 ## downloads
 
 get-lv2-deps: dependencies/lv2-deps/dist/stamp
@@ -39,25 +30,10 @@ dependencies/lv2-deps/dist/stamp: android-lv2-binaries.zip
 	./rewrite-pkg-config-paths.sh lv2-deps
 	ln -s `pwd`/dependencies/lv2-deps/dist androidaudioplugin-lv2/src/main/cpp/symlinked-dist
 	ln -s `pwd`/dependencies/lv2-deps/dist aap-ayumi/src/main/symlinked-dist
-	ln -s `pwd`/dependencies/lv2-deps/dist aap-sfizz/src/main/symlinked-dist
 	touch dependencies/lv2-deps/dist/stamp
 
 android-lv2-binaries.zip:
 	wget https://github.com/atsushieno/android-native-audio-builders/releases/download/r4/android-lv2-binaries.zip
-
-get-sfizz-deps: dependencies/sfizz-deps/dist/stamp
-
-dependencies/sfizz-deps/dist/stamp: android-libsndfile-binaries.zip
-	unzip android-libsndfile-binaries.zip -d dependencies/sfizz-deps/
-	./rewrite-pkg-config-paths.sh sfizz-deps
-	for a in $(ABIS_SIMPLE) ; do \
-		mkdir -p aap-sfizz/src/main/jniLibs/$$a ; \
-		cp -R dependencies/sfizz-deps/dist/$$a/lib/*.so aap-sfizz/src/main/jniLibs/$$a ; \
-	done
-	touch dependencies/sfizz-deps/dist/stamp
-
-android-libsndfile-binaries.zip:
-	wget https://github.com/atsushieno/android-native-audio-builders/releases/download/r6/android-libsndfile-binaries.zip
 
 get-guitarix-deps: dependencies/guitarix-deps/dist/stamp
 
