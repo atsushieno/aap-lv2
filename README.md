@@ -6,10 +6,9 @@ The sample ports include:
 
 - https://gitlab.com/drobilla/mda-lv2
 - https://github.com/brummer10/guitarix
-- https://github.com/sfztools/sfizz (still needs some host that can pass sfz filename)
 - https://github.com/atsushieno/ayumi-lv2
 
-...as well as own sample implementation:
+There are also [aap-lv2-fluidsynth](https://github.com/atsushieno/aap-lv2-fluidsynth/) and [aap-lv2-sfizz](https://github.com/atsushieno/aap-lv2-sfizz) plugins in their own repositories.
 
 ## Building
 
@@ -39,8 +38,6 @@ There are couple of steps to import existing LV2 plugsin into AAP world:
 The dependency Android binaries are built from [android-native-audio-builders](https://github.com/atsushieno/android-native-audio-builders) repository. It builds LV2/lilv dependencies as well as plugin sample binaries.
 
 For LV2, mda-lv2, and guitarix, the `make` step lets it download from the release tarballs.
-
-For sfizz, it directly references its own `CMakeLists.txt` from `build.gradle`, but also downloads the binary buidls of `libsndfile` and its dependencies.
 
 ### directory structure conversion
 
@@ -166,12 +163,6 @@ External software projects:
     - serd (private fork)
     - sord (private fork)
     - sratom
-- sfizz dependencies
-  - cerbero (as the builder, private fork)
-  - libsndfile
-    - libogg
-    - libvorbis
-    - flac
 
 There used to be cairo and all those dependencies, but they are all about "examples" in lv2 repo and totally optional. They are not really designed for Android, so now we skip them.
 
@@ -207,7 +198,7 @@ To use it, you will have to:
     - `abstract_io.h` https://gist.github.com/atsushieno/b9b6fd545d2eafbf94d6badf6cda961c
 - go back to topdir, and `rm -rf androidaudioplugin-lv2/src/main/jniLibs/`
 
-Also note that depending on the build approaches, the gradle build scripts may not reach the tasks for copying lv2 resources (e.g. `sfizz.lv2`). If they are missing in the apk, then it will fail to retrieve TTL files at instantiation time.
+Also note that depending on the build approaches, the gradle build scripts may not reach the tasks for copying lv2 resources. If they are missing in the apk, then it will fail to retrieve TTL files at instantiation time.
 
 
 ## Debugging with mda-lv2 internals
@@ -246,8 +237,6 @@ There are some sources copied from [jalv](https://gitlab.com/drobilla/jalv) proj
 
 `guitarix` and `mda-lv2` are distributed under the GPLv3 license and you 
 have to follow it when distributing or making changes to those parts.
-
-`sfizz` is distributed under the MIT license, but it has dependencies that are under LGPL2.1, Apache License 2.0, and so on. See [the project repository](https://github.com/sfztools/sfizz) for details.
 
 `ayumi-lv2` and `ayumi` are distributed under the MIT license.
 
