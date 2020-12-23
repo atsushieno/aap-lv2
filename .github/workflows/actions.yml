@@ -13,6 +13,13 @@ jobs:
       uses: actions/checkout@v1
       with:
         submodules: recursive
+    - name: cache NDK
+      uses: actions/cache@v2
+      env:
+        cache-name: cache-ndk
+      with:
+        path: /usr/local/lib/android/sdk/ndk/21.2.6472646
+        key: ndk_r21c_linux
     - name: apt update
       run: |
         sudo apt-get update
@@ -52,6 +59,13 @@ jobs:
       uses: actions/checkout@v1
       with:
         submodules: recursive
+    - name: cache NDK
+      uses: actions/cache@v2
+      env:
+        cache-name: cache-ndk
+      with:
+        path: /Users/runner/Library/Android/sdk/ndk/21.2.6472646
+        key: ndk_r21c_osx
     - name: set up JDK 11
       uses: actions/setup-java@v1
       with:
