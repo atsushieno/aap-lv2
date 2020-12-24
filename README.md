@@ -5,10 +5,13 @@ This repository contains LV2 backend (or wrapper, or whatever) support for [andr
 The sample ports include:
 
 - https://gitlab.com/drobilla/mda-lv2
-- https://github.com/brummer10/guitarix
 - https://github.com/atsushieno/ayumi-lv2
 
-There are also [aap-lv2-fluidsynth](https://github.com/atsushieno/aap-lv2-fluidsynth/) and [aap-lv2-sfizz](https://github.com/atsushieno/aap-lv2-sfizz) plugins in their own repositories.
+There are also dedicated repos for non-trivial LV2 plugin ports and so on:
+
+- [aap-lv2-fluidsynth](https://github.com/atsushieno/aap-lv2-fluidsynth/)
+- [aap-lv2-sfizz](https://github.com/atsushieno/aap-lv2-sfizz)
+- [aap-lv2-guitarix](https://github.com/atsushieno/aap-lv2-guitarix)
 
 ## Building
 
@@ -66,7 +69,7 @@ Note that this directory layout is different from source directory. In the sourc
 
 ### AAP Metadata
 
-AAP needs `aap_metadata.xml` in `res/xml`. It can be generated from LV2 manifests in the plugin directory, using `aap-import-lv2-metadata` tool:
+AAP needs `aap_metadata.xml` under `res/xml` directory. It can be generated from LV2 manifests in the plugin directory, using `aap-import-lv2-metadata` tool:
 
 ```
 $ ./tools/aap-import-lv2-metadata/aap-import-lv2-metadata [lv2path] [res_xml_path]
@@ -79,7 +82,7 @@ The way how this tool generates metadata from LV2 manifests is described in dept
 Unlike desktop LV2 plugins, we cannot really depend on local filesystems
 including temporary files. 
 
-There are couple of LV2 features such as LV2 Dynamic Manifest and state:makePaththat the specification itself assumes local filesystems, and they will not work as specified.
+There are couple of LV2 features such as LV2 Dynamic Manifest, and they will not work as specified. Things like state:makePath is a good part, which reduces environment-dependency, but plugins have to be carefully ported so that resolving file from a file path does not result in access to unexpected paths, they would just fail (as long as Android file system security works).
 
 
 ## Implementation details
@@ -154,19 +157,18 @@ We don't detect any impedance mismatch between TTL and metadata XML; LV2 backend
 
 NOTE: the actual native library builds have moved to `android-native-audio-builders` repo.
 
-android-audio-plugin-framework repo has some dependencies, which are either platform-level-specific, or external.
+This aap-lv2 repo has some dependencies, which are either platform-level-specific, or external.
 
 External software projects:
 
-- lv2 dependencies
-  - lilv (private fork)
-    - serd (private fork)
-    - sord (private fork)
-    - sratom
+- serd (private fork)
+- sord (private fork)
+- sratom
+- lilv (private fork)
 
-There used to be cairo and all those dependencies, but they are all about "examples" in lv2 repo and totally optional. They are not really designed for Android, so now we skip them.
+To avoid further dependencies like cairo, we skip some samples in mda-lv2 port (they are actually skipped at android-native-audio-builders repo).
 
-Also, unlike before, we don't build LV2 for desktop anymore. They are regarded as the installed packages on the system. Ubuntu 20.04 has those minimum requirement versions. If they don't exist for your distribution, build and install them from source.
+Also, unlike before, we don't build LV2 for desktop anymore. They are regarded as the installed packages on the system. Ubuntu 20.04 has those minimum requirement versions. If they don't exist for your distribution, build and install them from source and make it possible to be resolved via pkg-config.
 
 ### cerbero fork
 
@@ -235,7 +237,7 @@ LV2 toolkit core parts (serd/sord/sratom/lilv/lv2) are under the ISC license.
 
 There are some sources copied from [jalv](https://gitlab.com/drobilla/jalv) project mentioned in androidaudioplugin-lv2 sources, `symap.*`, as well as those files under `zix` directory, and they are distributed under the ISC license.
 
-`guitarix` and `mda-lv2` are distributed under the GPLv3 license and you 
+`mda-lv2` is distributed under the GPLv3 license and you 
 have to follow it when distributing or making changes to those parts.
 
 `ayumi-lv2` and `ayumi` are distributed under the MIT license.
