@@ -30,7 +30,8 @@ dependencies/lv2-deps/dist/stamp: android-lv2-binaries.zip
 	if [ ! -d androidaudioplugin-lv2/src/main/cpp/symlinked-dist ] ; then \
 		ln -s `pwd`/dependencies/lv2-deps/dist androidaudioplugin-lv2/src/main/cpp/symlinked-dist ; \
 	fi
-	if [ ! -d aap-ayumi/src/main/cpp/symlinked-dist ] ; then \
+	if [ ! -d aap-ayumi/src/main/symlinked-dist ] ; then \
+		mkdir -p aap-ayumi/src/main ; \
 		ln -s `pwd`/dependencies/lv2-deps/dist aap-ayumi/src/main/symlinked-dist ; \
 	fi
 	touch dependencies/lv2-deps/dist/stamp
