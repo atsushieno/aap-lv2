@@ -183,10 +183,10 @@ There are couple of lv2 related source repositories, namely serd and lilv. Their
 And note that access to assets is not as simple as that to filesystem. It is impossible to enumerate assets at runtime. They have to be explicitly named and given. Therefore there are some plugin loader changes in our lilv fork.
 
 
-## Debugging with LV2 internals
+## Debugging with LV2 toolkit internals
 
-Sometimes having binary-only LV2 SDK bits makes debugging difficult.
-To improve such a situation, we can build all lilv and dependencies together
+Sometimes having binary-only LV2 toolkits makes debugging difficult.
+To improve such a situation, we can build lilv and all the dependencies together
 within libandroidaudioplugin-lv2.so. 
 This is a patch @atsushieno created for making it possible: https://gist.github.com/atsushieno/969eedaeefb51d99309a3234c2f9b8de
 
@@ -200,7 +200,7 @@ To use it, you will have to:
     - `abstract_io.h` https://gist.github.com/atsushieno/b9b6fd545d2eafbf94d6badf6cda961c
 - go back to topdir, and `rm -rf androidaudioplugin-lv2/src/main/jniLibs/`
 
-Also note that depending on the build approaches, the gradle build scripts may not reach the tasks for copying lv2 resources. If they are missing in the apk, then it will fail to retrieve TTL files at instantiation time.
+Also note that depending on the build approaches, the gradle build scripts may not reach the tasks for copying lv2 resources. If they are missing in the apk, then it will fail to retrieve TTL files at instantiation time. Some `Makefile` lines do those jobs in normal builds, and sometimes you may have to do that manually here.
 
 
 ## Debugging with mda-lv2 internals
