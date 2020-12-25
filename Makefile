@@ -36,7 +36,7 @@ dependencies/lv2-deps/dist/stamp: android-lv2-binaries.zip
 	touch dependencies/lv2-deps/dist/stamp
 
 android-lv2-binaries.zip:
-	wget https://github.com/atsushieno/android-native-audio-builders/releases/download/r4/android-lv2-binaries.zip
+	wget https://github.com/atsushieno/android-native-audio-builders/releases/download/r8.1/android-lv2-binaries.zip
 
 # Run importers
 
