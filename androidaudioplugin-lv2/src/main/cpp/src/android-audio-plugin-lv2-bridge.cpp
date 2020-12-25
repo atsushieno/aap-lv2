@@ -108,7 +108,7 @@ class AAPLV2PluginContext {
 public:
     AAPLV2PluginContext(AAPLV2PluginContextStatics *statics, LilvWorld *world,
                         const LilvPlugin *plugin, int32_t sampleRate)
-            : statics(statics), world(world), plugin(plugin), instance(instance), sample_rate(sampleRate) {
+            : statics(statics), world(world), plugin(plugin), sample_rate(sampleRate) {
         midi_atom_forge = (LV2_Atom_Forge *) calloc(1024, 1);
         symap = symap_new();
     }
@@ -125,7 +125,7 @@ public:
     AAPLV2URIDs urids;
     LilvWorld *world;
     const LilvPlugin *plugin;
-    LilvInstance *instance;
+    LilvInstance *instance{nullptr};
     int32_t sample_rate;
     AndroidAudioPluginBuffer *cached_buffer{nullptr};
     void *dummy_raw_buffer{nullptr};
