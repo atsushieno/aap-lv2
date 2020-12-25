@@ -27,10 +27,10 @@ dependencies/lv2-deps/dist/stamp: android-lv2-binaries.zip
 	mkdir -p dependencies/lv2-deps
 	unzip android-lv2-binaries -d dependencies/lv2-deps/
 	./rewrite-pkg-config-paths.sh lv2-deps
-	if [ ! -e androidaudioplugin-lv2/src/main/cpp/symlinked-dist ] ; then \
+	if [ ! -d androidaudioplugin-lv2/src/main/cpp/symlinked-dist ] ; then \
 		ln -s `pwd`/dependencies/lv2-deps/dist androidaudioplugin-lv2/src/main/cpp/symlinked-dist ; \
 	fi
-	if [ ! -e androidaudioplugin-lv2/src/main/cpp/symlinked-dist ] ; then \
+	if [ ! -d androidaudioplugin-lv2/src/main/cpp/symlinked-dist ] ; then \
 		ln -s `pwd`/dependencies/lv2-deps/dist aap-ayumi/src/main/symlinked-dist ; \
 	fi
 	touch dependencies/lv2-deps/dist/stamp
