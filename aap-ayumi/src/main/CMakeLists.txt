@@ -24,7 +24,7 @@ endif (ANDROID)
 
 find_package ( PkgConfig REQUIRED )
 
-pkg_search_module ( LV2 REQUIRED lv2>=1.18.0 )
+pkg_search_module ( LV2 REQUIRED lv2>=1.16.0 )
 
 set (ayumi-lv2_INCLUDES
         ${LV2_INCLUDE_DIRS}
