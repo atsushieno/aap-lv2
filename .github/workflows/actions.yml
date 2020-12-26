@@ -18,6 +18,7 @@ jobs:
       with:
         fail-fast: true
         commit-filter: '[ci skip];[CI skip];[CI-skip];[ci-skip];[CI SKIP];[CI-SKIP]'
+        commit-filter-separator: ';'
     - name: cache NDK
       uses: actions/cache@v2
       env:
@@ -69,6 +70,7 @@ jobs:
       with:
         fail-fast: true
         commit-filter: '[ci skip];[CI skip];[CI-skip];[ci-skip];[CI SKIP];[CI-SKIP]'
+        commit-filter-separator: ';'
     - name: cache NDK
       uses: actions/cache@v2
       env:
