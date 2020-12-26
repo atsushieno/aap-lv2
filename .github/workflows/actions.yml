@@ -19,7 +19,6 @@ jobs:
     - name: CI skip
       uses: mstachniuk/ci-skip@v1
       with:
-        fail-fast: true
         commit-filter: '[ci skip];[CI skip];[CI-skip];[ci-skip];[CI SKIP];[CI-SKIP]'
         commit-filter-separator: ';'
 
@@ -81,7 +80,6 @@ jobs:
     - name: CI skip
       uses: mstachniuk/ci-skip@v1
       with:
-        fail-fast: true
         commit-filter: '[ci skip];[CI skip];[CI-skip];[ci-skip];[CI SKIP];[CI-SKIP]'
         commit-filter-separator: ';'
 
