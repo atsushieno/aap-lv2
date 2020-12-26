@@ -17,6 +17,7 @@ jobs:
       uses: mstachniuk/ci-skip@v1
       with:
         fail-fast: true
+        commit-filter: '[ci skip];[CI skip];[CI-skip];[ci-skip];[CI SKIP];[CI-SKIP]'
     - name: cache NDK
       uses: actions/cache@v2
       env:
@@ -67,6 +68,7 @@ jobs:
       uses: mstachniuk/ci-skip@v1
       with:
         fail-fast: true
+        commit-filter: '[ci skip];[CI skip];[CI-skip];[ci-skip];[CI SKIP];[CI-SKIP]'
     - name: cache NDK
       uses: actions/cache@v2
       env:
