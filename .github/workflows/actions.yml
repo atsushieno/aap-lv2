@@ -12,10 +12,6 @@ jobs:
       skip: ${{ steps.ci-skip-step.outputs.ci-skip }}
       skip-not: ${{ steps.ci-skip-step.outputs.ci-skip-not }}
     steps:
-    - name: checkout
-      uses: actions/checkout@v1
-      with:
-        submodules: recursive
     - id: ci-skip-step
       uses: mstachniuk/ci-skip@v1
       with:
@@ -28,6 +24,10 @@ jobs:
     needs: linux-init
     if: ${{ needs.linux-init.outputs.skip == 'false' }}
     steps:
+    - name: checkout
+      uses: actions/checkout@v1
+      with:
+        submodules: recursive
     - name: cache NDK
       uses: actions/cache@v2
       env:
@@ -73,10 +73,6 @@ jobs:
       skip: ${{ steps.ci-skip-step.outputs.ci-skip }}
       skip-not: ${{ steps.ci-skip-step.outputs.ci-skip-not }}
     steps:
-    - name: checkout
-      uses: actions/checkout@v1
-      with:
-        submodules: recursive
     - id: ci-skip-step
       uses: mstachniuk/ci-skip@v1
       with:
@@ -89,6 +85,10 @@ jobs:
     needs: osx-init
     if: ${{ needs.osx-init.outputs.skip == 'false' }}
     steps:
+    - name: checkout
+      uses: actions/checkout@v1
+      with:
+        submodules: recursive
     - name: cache NDK
       uses: actions/cache@v2
       env:
