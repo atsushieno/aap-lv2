@@ -198,8 +198,8 @@ To use it, you will have to:
   - `ln -s /path/to/android-native-audio-builders/serd serd` as well as `sord`, `sratom` and `lilv`.
   - `cp /path/to/android-native-audio-builders/build/x86/serd/build/serd_config.h .` as well as `sord/build/sord_config.h`, `sratom/build/sratom_config.h` and `lilv/build/lilv_config.h` (it may require exact ABI, I used `x86` here)
   - Put these additional sources to the directory.
-    - `abstract_io.c` https://gist.github.com/atsushieno/ea113d7ce392fe31a65dfdda08e6a1b4
-    - `abstract_io.h` https://gist.github.com/atsushieno/b9b6fd545d2eafbf94d6badf6cda961c
+    - `abstract_io.c` https://raw.githubusercontent.com/atsushieno/serd/android/src/abstract_io.c
+    - `abstract_io.h` https://raw.githubusercontent.com/atsushieno/serd/android/src/abstract_io.h
 - go back to topdir, and `rm -rf androidaudioplugin-lv2/src/main/jniLibs/`
 
 Also note that depending on the build approaches, the gradle build scripts may not reach the tasks for copying lv2 resources. If they are missing in the apk, then it will fail to retrieve TTL files at instantiation time. Some `Makefile` lines do those jobs in normal builds, and sometimes you may have to do that manually here.
