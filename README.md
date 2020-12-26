@@ -185,6 +185,8 @@ And note that access to assets is not as simple as that to filesystem. It is imp
 
 ## Debugging with LV2 toolkit internals
 
+To wrap this section up, we have `setup-hackable-environment.sh` bash script now. Now you can mostly skip the rest of this section if it just works for you. It will get outdated quite often though.
+
 Sometimes having binary-only LV2 toolkits makes debugging difficult.
 To improve such a situation, we can build lilv and all the dependencies together
 within libandroidaudioplugin-lv2.so. 
