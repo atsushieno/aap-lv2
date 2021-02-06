@@ -23,6 +23,8 @@ android {
             }
         }
     }
+    // See android-audio-plugin-framework/java/androidaudioplugin/build.gradle to find out why it is required...
+    ndkVersion "21.3.6528147"
 
     buildTypes {
         release {
