@@ -66,6 +66,8 @@ set (androidaudioplugin-lv2_SOURCES
 		"src/symap.cpp"
 		"src/zix/ring.cpp"
 
+		"src/abstract_io.c"
+
 		"${DEPBASE}/lilv/src/plugin.c"
 		"${DEPBASE}/lilv/src/pluginclass.c"
 		"${DEPBASE}/lilv/src/filesystem.c"
@@ -74,7 +76,7 @@ set (androidaudioplugin-lv2_SOURCES
 		"${DEPBASE}/lilv/src/state.c"
 		"${DEPBASE}/lilv/src/lib.c"
 		"${DEPBASE}/lilv/src/zix/tree.c"
-		"${DEPBASE}/lilv/src/abstract_io.c"
+		# "${DEPBASE}/lilv/src/abstract_io.c"
 		"${DEPBASE}/lilv/src/instance.c"
 		"${DEPBASE}/lilv/src/node.c"
 		"${DEPBASE}/lilv/src/world.c"
