@@ -5,44 +5,16 @@ all: build-all
 
 build-all: \
 	build-aap-core \
-	get-lv2-deps \
-	import-lv2-deps \
+	build-lv2-importer \
 	build-java
 
 build-non-app: \
 	build-aap-core \
-	get-lv2-deps \
-	import-lv2-deps \
 	build-lv2-importer \
 	build-java-core
 
 build-aap-core:
 	cd dependencies/android-audio-plugin-framework && make all-no-desktop
-
-## downloads
-
-get-lv2-deps: dependencies/lv2-deps/dist/stamp
-
-dependencies/lv2-deps/dist/stamp: android-lv2-binaries.zip
-	mkdir -p dependencies/lv2-deps
-	unzip android-lv2-binaries -d dependencies/lv2-deps/
-	./rewrite-pkg-config-paths.sh lv2-deps
-	if [ ! -d androidaudioplugin-lv2/src/main/cpp/symlinked-dist ] ; then \
-		ln -s `pwd`/dependencies/lv2-deps/dist androidaudioplugin-lv2/src/main/cpp/symlinked-dist ; \
-	fi
-	if [ ! -d aap-ayumi/src/main/symlinked-dist ] ; then \
-		mkdir -p aap-ayumi/src/main ; \
-		ln -s `pwd`/dependencies/lv2-deps/dist aap-ayumi/src/main/symlinked-dist ; \
-	fi
-	touch dependencies/lv2-deps/dist/stamp
-
-android-lv2-binaries.zip:
-	wget https://github.com/atsushieno/android-native-audio-builders/releases/download/r8.3/android-lv2-binaries.zip
-
-# Run importers
-
-import-lv2-deps: build-lv2-importer
-	./import-lv2-deps.sh
 
 ## Build utility
 

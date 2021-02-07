@@ -17,6 +17,8 @@
 
 #if ANDROID
 
+extern AAssetManager *current_asset_manager;
+
 namespace aaplv2 {
 
 typedef void (*set_io_context_func)(void *);
@@ -40,9 +42,11 @@ void ensureDLLoaded() {
 }
 
 void set_io_context(AAssetManager *am) {
-    ensureDLLoaded();
-    libserd_set_context(am);
-    liblilv_set_context(am);
+    //ensureDLLoaded();
+    //libserd_set_context(am);
+    //liblilv_set_context(am);
+
+    current_asset_manager = am;
 }
 
 void cleanup() {

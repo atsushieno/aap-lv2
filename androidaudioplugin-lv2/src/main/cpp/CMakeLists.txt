@@ -4,15 +4,14 @@
 
 cmake_minimum_required(VERSION 3.6)
 
-project(androidaudioplugin-lv2 VERSION 0.1 LANGUAGES CXX)
+project(androidaudioplugin-lv2 VERSION 0.1 LANGUAGES C CXX)
 
-# Android Studio is stupid. It tries to index your home directory if it references ancestor directories.
-# https://issuetracker.google.com/issues/159719671
-# Now it references descendant directory via symlink instead.
+set(DEPBASE ../../../../dependencies)
+
 if (ANDROID)
 
 if (NOT (BUILD_WITH_PREFAB))
-get_filename_component (AAPDIR "${CMAKE_CURRENT_LIST_DIR}/../../../../dependencies/android-audio-plugin-framework" ABSOLUTE)
+get_filename_component (AAPDIR "${DEPBASE}/android-audio-plugin-framework" ABSOLUTE)
 set (androidaudioplugin-lv2_INCLUDES
 		"${AAPDIR}/native/plugin-api/include"
 		"${AAPDIR}/native/androidaudioplugin/core/include")
@@ -20,13 +19,10 @@ link_directories (
 		"${AAPDIR}/java/androidaudioplugin/build/intermediates/merged_native_libs/debug/out/lib/${CMAKE_ANDROID_ARCH_ABI}"
 )
 endif ()
-get_filename_component (LV2_DEP_DIST "${CMAKE_CURRENT_LIST_DIR}/symlinked-dist/${CMAKE_ANDROID_ARCH_ABI}" ABSOLUTE)
-set (ENV{PKG_CONFIG_PATH} "${LV2_DEP_DIST}/lib/pkgconfig/")
 
 else (ANDROID)
 
-get_filename_component (AAPDIR "${CMAKE_CURRENT_LIST_DIR}/../../../../dependencies/android-audio-plugin-framework" ABSOLUTE)
-get_filename_component (LV2_DEP_DIST "${AAPDIR}/dependencies/lv2-desktop/dist" ABSOLUTE)
+get_filename_component (AAPDIR "${CMAKE_CURRENT_LIST_DIR}/../../../${DEPBASE}/android-audio-plugin-framework" ABSOLUTE)
 
 set (androidaudioplugin-lv2_INCLUDES
 		"${AAPDIR}/native/plugin-api/include"
@@ -36,41 +32,77 @@ endif (ANDROID)
 
 # resolve dependencies via pkg-config
 
-find_package ( PkgConfig REQUIRED )
-
-pkg_search_module ( LV2 REQUIRED lv2>=1.18.0 )
-pkg_search_module ( SERD REQUIRED serd-0>=0.28.0 )
-pkg_search_module ( SORD REQUIRED sord-0>=0.16.0 )
-pkg_search_module ( SRATOM REQUIRED sratom-0>=0.6.0 )
-pkg_search_module ( LILV REQUIRED lilv-0>=0.24.0 )
-
 # set INCLUDE_DIRS and LIBRARY_DIRS
 
 set (androidaudioplugin-lv2_INCLUDES
 		${androidaudioplugin-lv2_INCLUDES}
 		"src"
-		${LV2_INCLUDE_DIRS}
-		${SERD_INCLUDE_DIRS}
-		${SORD_INCLUDE_DIRS}
-		${SRATOM_INCLUDE_DIRS}
-		${LILV_INCLUDE_DIRS}
+		${DEPBASE}/serd/include
+		${DEPBASE}/sord
+		${DEPBASE}/lv2
+		${DEPBASE}/sratom/include
+		${DEPBASE}/lilv
 		)
 
 # target_link_directories is not usable until cmake 3.14...
 link_directories (
-		${SERD_LIBRARY_DIRS}
-		${SORD_LIBRARY_DIRS}
-		${SRATOM_LIBRARY_DIRS}
-		${LILV_LIBRARY_DIRS}
 )
 
 # set SOURCES. Android build has some additional ones.
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set (androidaudioplugin-lv2_INCLUDES
+    ${DEPBASE}
+	${DEPBASE}/serd/src
+	${DEPBASE}/sord/src
+	${DEPBASE}/lilv/src
+	${androidaudioplugin-lv2_INCLUDES}
+	)
 
 set (androidaudioplugin-lv2_SOURCES
 		"src/android-audio-plugin-lv2-bridge.cpp"
 		"src/AudioPluginLV2LocalHost_native.cpp"
 		"src/symap.cpp"
 		"src/zix/ring.cpp"
+
+		"${DEPBASE}/lilv/src/plugin.c"
+		"${DEPBASE}/lilv/src/pluginclass.c"
+		"${DEPBASE}/lilv/src/filesystem.c"
+		"${DEPBASE}/lilv/src/ui.c"
+		"${DEPBASE}/lilv/src/util.c"
+		"${DEPBASE}/lilv/src/state.c"
+		"${DEPBASE}/lilv/src/lib.c"
+		"${DEPBASE}/lilv/src/zix/tree.c"
+		"${DEPBASE}/lilv/src/abstract_io.c"
+		"${DEPBASE}/lilv/src/instance.c"
+		"${DEPBASE}/lilv/src/node.c"
+		"${DEPBASE}/lilv/src/world.c"
+		"${DEPBASE}/lilv/src/query.c"
+		"${DEPBASE}/lilv/src/scalepoint.c"
+		"${DEPBASE}/lilv/src/collections.c"
+		"${DEPBASE}/lilv/src/port.c"
+		"${DEPBASE}/serd/src/base64.c"
+		"${DEPBASE}/serd/src/writer.c"
+		"${DEPBASE}/serd/src/system.c"
+		"${DEPBASE}/serd/src/reader.c"
+		"${DEPBASE}/serd/src/n3.c"
+		# "${DEPBASE}/serd/src/abstract_io.c"
+		# "${DEPBASE}/serd/src/serdi.c"
+		"${DEPBASE}/serd/src/byte_source.c"
+		"${DEPBASE}/serd/src/uri.c"
+		"${DEPBASE}/serd/src/env.c"
+		"${DEPBASE}/serd/src/node.c"
+		"${DEPBASE}/serd/src/string.c"
+		# "${DEPBASE}/sord/src/sordi.c"
+		"${DEPBASE}/sord/src/sord_test.c"
+		"${DEPBASE}/sord/src/syntax.c"
+		# "${DEPBASE}/sord/src/sord_validate.c"
+		"${DEPBASE}/sord/src/zix/hash.c"
+		"${DEPBASE}/sord/src/zix/digest.c"
+		"${DEPBASE}/sord/src/zix/btree.c"
+		"${DEPBASE}/sord/src/sord.c"
+		"${DEPBASE}/sratom/src/sratom.c"
 		)
 
 
@@ -84,18 +116,15 @@ if (ANDROID)
 		set (androidaudioplugin-lv2_LIBS
 				android
 				log
-				${LILV_LIBRARIES}
 				androidaudioplugin::androidaudioplugin)
 	else (BUILD_WOTH_PREFAB)
 		set (androidaudioplugin-lv2_LIBS
 				android
 				log
-				${LILV_LIBRARIES}
 				androidaudioplugin)
 	endif (BUILD_WITH_PREFAB)
 else (ANDROID)
 	set (androidaudioplugin-lv2_LIBS
-			${LILV_LIBRARIES}
 			androidaudioplugin)
 endif (ANDROID)
 
@@ -106,7 +135,6 @@ target_include_directories (androidaudioplugin-lv2
 
 target_compile_options (androidaudioplugin-lv2
         PRIVATE
-        -std=c++17
         -Wall
         -Wshadow
         )

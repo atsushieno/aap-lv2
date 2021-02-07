@@ -9,6 +9,7 @@ There are also dedicated repos for non-trivial LV2 plugin ports and so on:
 - [aap-lv2-sfizz](https://github.com/atsushieno/aap-lv2-sfizz)
 - [aap-lv2-guitarix](https://github.com/atsushieno/aap-lv2-guitarix)
 
+
 ## Building
 
 There is a normative build script for GitHub Actions (see its `workflows.yml`), including dependencies.
@@ -164,8 +165,6 @@ External software projects:
 
 To avoid further dependencies like cairo, we skip some samples in mda-lv2 port (they are actually skipped at android-native-audio-builders repo).
 
-Also, unlike before, we don't build LV2 for desktop anymore. They are regarded as the installed packages on the system. Ubuntu 20.04 has those minimum requirement versions. If they don't exist for your distribution, build and install them from source and make it possible to be resolved via pkg-config.
-
 ### cerbero fork
 
 The external dependencies are built using cerbero build system. Cerbero is a comprehensive build system that cares all standard Android ABIs and builds some complicated projects like glib (which has many dependencies) and cairo.
@@ -178,32 +177,13 @@ There are couple of lv2 related source repositories, namely serd and lilv. Their
 
 And note that access to assets is not as simple as that to filesystem. It is impossible to enumerate assets at runtime. They have to be explicitly named and given. Therefore there are some plugin loader changes in our lilv fork.
 
-
-## Debugging with LV2 toolkit internals
-
-To wrap this section up, we have `setup-hackable-environment.sh` bash script now. Now you can mostly skip the rest of this section if it just works for you. It will get outdated quite often though.
-
-Sometimes having binary-only LV2 toolkits makes debugging difficult.
-To improve such a situation, we can build lilv and all the dependencies together
-within libandroidaudioplugin-lv2.so. 
-This is a patch @atsushieno created for making it possible: https://gist.github.com/atsushieno/969eedaeefb51d99309a3234c2f9b8de
-
-To use it, you will have to:
-
-- create a directory `lilv_direct` in `androidaudioplugin-lv2/src/main/cpp/src` and go there. In that directory...
-  - `ln -s /path/to/android-native-audio-builders/serd serd` as well as `sord`, `sratom` and `lilv`.
-  - `cp /path/to/android-native-audio-builders/build/x86/serd/build/serd_config.h .` as well as `sord/build/sord_config.h`, `sratom/build/sratom_config.h` and `lilv/build/lilv_config.h` (it may require exact ABI, I used `x86` here)
-  - Put these additional sources to the directory.
-    - `abstract_io.c` https://raw.githubusercontent.com/atsushieno/serd/android/src/abstract_io.c
-    - `abstract_io.h` https://raw.githubusercontent.com/atsushieno/serd/android/src/abstract_io.h
-- go back to topdir, and `rm -rf androidaudioplugin-lv2/src/main/jniLibs/`
-
-Also note that depending on the build approaches, the gradle build scripts may not reach the tasks for copying lv2 resources. If they are missing in the apk, then it will fail to retrieve TTL files at instantiation time. Some `Makefile` lines do those jobs in normal builds, and sometimes you may have to do that manually here.
+Another thing to note is that we check in `serd_config.h`, `sord_config.h`, `sratom_config.h` and `lilv_config.h` directly in the source tree, which are generated from x86 build of android-native-audio-builders. If they have to be rebuilt (for e.g. updated submodules), rebuild and copy the generated headers again.
 
 
 ## Performance measuring
 
 `android-audio-plugin-lv2-bridge.cpp` has a simple performance measurement aid which can be enabled with JUCEAAP_LOG_PERF variable.
+
 
 ## Licensing notice
 
