@@ -1,30 +1,26 @@
 # AAP-LV2: LV2 backend and ports to AAP
 
-This repository contains LV2 backend (or wrapper, or whatever) support for [android-audio-plugin-framework](https://github.com/atsushieno/android-audio-plugin-framework), as well as samples.
-
-The sample ports include:
-
-- https://gitlab.com/drobilla/mda-lv2
-- https://github.com/atsushieno/ayumi-lv2
+This repository contains LV2 backend (or wrapper, or whatever) support for [android-audio-plugin-framework](https://github.com/atsushieno/android-audio-plugin-framework), as well as minimum samples.
 
 There are also dedicated repos for non-trivial LV2 plugin ports and so on:
 
+- [aap-lv2-mda](https://github.com/atsushieno/aap-lv2-mda/)
 - [aap-lv2-fluidsynth](https://github.com/atsushieno/aap-lv2-fluidsynth/)
 - [aap-lv2-sfizz](https://github.com/atsushieno/aap-lv2-sfizz)
 - [aap-lv2-guitarix](https://github.com/atsushieno/aap-lv2-guitarix)
 
 ## Building
 
-Right now this repository is supposed to be checked out in the same directory as `android-audio-plugin-framework` (name fixed).
+There is a normative build script for GitHub Actions (see its `workflows.yml`), including dependencies.
 
-`make` should take care of the builds.
+For our local desktop development, `make` should take care of the builds.
 
 
 ## Limitations
 
 LV2 Dynamic Manifest feature expects that the hosting environment has access to writable temporary directory. It is wrong assumption and LV2 specification has to remove any reference to `FILE*` in the public API. It is not supported in AAP.
 
-LV2 State `makePath` and `mapPath` features are not supported for the same reason.
+Also, LV2 State `makePath` and `mapPath` features are not supported for the same reason (while they are meant to make things relocatable across platforms).
 
 
 ## Importing LV2 plugins
@@ -63,7 +59,7 @@ Those `lib/*.lv2/*.so` files cannot be dynamically loaded unlike Linux desktop, 
 - `assets/foo.lv2/foo.ttl`
 - `lib/{abi}/foo.so`
 
-The `import-lv2-deps.sh` does this task for `aap-mda-lv2`. Similarly, `import-guitarix-deps.sh` does it for `aap-guitarix`.
+The `import-lv2-deps.sh` does this task for `aap-mda-lv2` (in its own repo). Similarly, `import-guitarix-deps.sh` does it for `aap-guitarix` (ditto).
 
 Note that this directory layout is different from source directory. In the sources, those `.so` files are placed under `src/main/jniLibs`.
 
@@ -205,28 +201,6 @@ To use it, you will have to:
 Also note that depending on the build approaches, the gradle build scripts may not reach the tasks for copying lv2 resources. If they are missing in the apk, then it will fail to retrieve TTL files at instantiation time. Some `Makefile` lines do those jobs in normal builds, and sometimes you may have to do that manually here.
 
 
-## Debugging with mda-lv2 internals
-
-Similar to the previous section on lilv internals, it is also possible to build and debug mda-lv2 with sources. However, the required changes are different - especially in that it needs metadata changes.
-
-- create symbolic from `android-native-audio-builders/mda-lv2` to (some path like) `aap-mda-lv2/src/mda_direct`
-- add the sources to `CMakeLists.txt`, but you can build only one plugin because mda-lv2 iterates source builds in its waf land. `lvz/*.cpp` are required with any plugin.
-- You will have to define some variables to compile sources. (see below)
-- add `lvz` and `src` directories to `target_include_directories`.
-- in `assets/lv2/mda-lv2/manifest.ttl`, find your target plugin to change and replace its `.so` file with `libaap-mda-lv2.so` (the one you are going to build). lilv will load the specified library.
-
-The additional definitions you need:
-
-```
-        -DPLUGIN_CLASS=mdaEPiano
-        -DURI_PREFIX="http://drobilla.net/plugins/mda/"
-        -DPLUGIN_URI_SUFFIX="EPiano"
-        -DPLUGIN_HEADER="mdaEPiano.h"
-```
-
-[An example patch](https://gist.github.com/atsushieno/a233bc7a527c02ef562b4151647ff698) which once worked is provided for reference (the directory structure is not strictly following the list above, but you would get the ideas).
-
-
 ## Performance measuring
 
 `android-audio-plugin-lv2-bridge.cpp` has a simple performance measurement aid which can be enabled with JUCEAAP_LOG_PERF variable.
@@ -238,9 +212,6 @@ aap-lv2 codebase is distributed under the MIT license.
 LV2 toolkit core parts (serd/sord/sratom/lilv/lv2) are under the ISC license.
 
 There are some sources copied from [jalv](https://gitlab.com/drobilla/jalv) project mentioned in androidaudioplugin-lv2 sources, `symap.*`, as well as those files under `zix` directory, and they are distributed under the ISC license.
-
-`mda-lv2` is distributed under the GPLv3 license and you 
-have to follow it when distributing or making changes to those parts.
 
 `ayumi-lv2` and `ayumi` are distributed under the MIT license.
 
