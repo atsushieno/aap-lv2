@@ -22,21 +22,25 @@ class AudioPluginLV2ServiceExtension : AudioPluginService.Extension
 
     override fun initialize(context: Context)
     {
-        var lv2Paths = AudioPluginLocalHost.getLocalAudioPluginService(context).plugins
-            .filter { p -> p.backend == "LV2" }
-            .map { p -> if(p.assets != null) File(p.assets!!).parent.toString() else "" }
-            .distinct().toTypedArray()
         val svcInfo = context.packageManager.getServiceInfo(
             ComponentName(context, AudioPluginService::class.java), 0)
         val isFile = svcInfo.metaData?.getBoolean(LV2_RESOURCE_FROM_FILE, false)
         val dataAbsDir = context.applicationContext.filesDir.absolutePath
         if (isFile == true) {
+            var lv2Paths = AudioPluginLocalHost.getLocalAudioPluginService(context).plugins
+                .filter { p -> p.backend == "LV2" }
+                .map { p -> if (p.assets != null) File(p.assets!!).parent.toString() else "" }
+                .distinct().toTypedArray()
             var lv2pathStr = lv2Paths.joinToString(":") {
                     s -> if (s.startsWith('/')) "$dataAbsDir$s" else "$dataAbsDir/$s" }
             initialize(lv2pathStr, null)
-        }
-        else
+        } else {
+            var lv2Paths = AudioPluginLocalHost.getLocalAudioPluginService(context).plugins
+                .filter { p -> p.backend == "LV2" }
+                .map { p -> if (p.assets != null) p.assets!! else "" }
+                .distinct().toTypedArray()
             initialize(lv2Paths.joinToString(":"), context.assets)
+        }
     }
 
     private external fun initialize(lv2Path: String, assets: AssetManager?)
