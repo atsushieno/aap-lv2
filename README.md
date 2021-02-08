@@ -91,12 +91,25 @@ There is a big limitation on Android platform: it is not possible to get list of
 To address this issue, AAP-LV2 plugin service takes a list of LV2 asset paths from `aap_metadata.xml`, which are used for `LV2_PATH` settings. It is taken care by `org.androidaudioplugin.lv2.AudioPluginLV2ServiceExtension` and plugin developers shouldn't have to worry about it, as long as they add the following metadata within `<service>` for AudioPluginService:
 
 ```
-            <meta-data
-                android:name="org.androidaudioplugin.AudioPluginService#Extensions"
-                android:value="org.androidaudioplugin.lv2.AudioPluginLV2ServiceExtension"
-                />
+<meta-data
+    android:name="org.androidaudioplugin.AudioPluginService#Extensions"
+    android:value="org.androidaudioplugin.lv2.AudioPluginLV2ServiceExtension"
+    />
 ```
 
+### Resolve resources from assets or files
+
+Sometimes, depending on how we implement a plugin, we might want to resolve files either from assets or in the local user (file) storage. By default, it resolves resources from the assets.
+But if any plugin implementation code depends on file access API (stdio, std C++ API, std::filesystem etc.) or needs file writes (not just reads), we can indicate the plugin to read and write files.
+It is Service-level specification.
+To indicate file I/O instead of assets I/O, add this element under the `<service>` element for `org.androidaudioplugin.AudioPluginService`:
+
+```
+<meta-data
+    android:name="org.androidaudioplugin.lv2.AudioPluginLV2ServiceExtension#ResourceFromFile"
+    android:value="true"
+    />
+```
 
 ### converting LV2 metadata to AAP metadata
 
