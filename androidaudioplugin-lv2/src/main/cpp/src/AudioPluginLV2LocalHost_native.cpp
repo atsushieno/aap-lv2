@@ -62,7 +62,7 @@ JNIEXPORT void JNICALL
 Java_org_androidaudioplugin_lv2_AudioPluginLV2ServiceExtension_initialize(JNIEnv *env, jobject obj,
                                                                           jstring lv2PathString,
                                                                           jobject assets) {
-    aaplv2::set_io_context(AAssetManager_fromJava(env, assets));
+    aaplv2::set_io_context(assets ? AAssetManager_fromJava(env, assets) : nullptr);
 
     jboolean isCopy = JNI_TRUE;
     auto s = env->GetStringUTFChars(lv2PathString, &isCopy);
