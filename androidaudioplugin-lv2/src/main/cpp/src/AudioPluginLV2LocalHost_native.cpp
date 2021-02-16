@@ -13,7 +13,7 @@
 
 #endif
 
-#include "aap/android-audio-plugin-host.hpp"
+#include "aap/audio-plugin-host.h"
 
 #if ANDROID
 
