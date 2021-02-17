@@ -17,10 +17,14 @@
 #include <sord/sord.h>
 #include <lilv/lilv.h>
 /* FIXME: this is super hacky */
-#include "lv2/lv2plug.in/ns/ext/atom/atom.h"
-#include "lv2/lv2plug.in/ns/ext/midi/midi.h"
+#include "lv2/core/lv2.h"
+#include "lv2/atom/atom.h"
+#include "lv2/midi/midi.h"
 
 #define RDF__A LILV_NS_RDF "type"
+
+#define AAP_CORE_URL "urn:org.androidaudioplugin.core"
+#define AAP_PORT_PROPERTIES_URL "urn:org.androidaudioplugin.port"
 
 LilvNode
 	*rdf_a_uri_node,
@@ -31,7 +35,10 @@ LilvNode
 	*audio_port_uri_node,
 	/* *control_port_uri_node, */
 	*input_port_uri_node,
-	*output_port_uri_node;
+	*output_port_uri_node,
+	*port_property_uri_node,
+	*toggled_uri_node,
+	*integer_uri_node;
 
 
 #define PORTCHECKER_SINGLE(_name_,_type_) inline bool _name_ (const LilvPlugin* plugin, const LilvPort* port) { return lilv_port_is_a (plugin, port, _type_); }
@@ -80,10 +87,12 @@ int main(int argc, const char **argv)
     /*control_port_uri_node = lilv_new_uri (world, LV2_CORE__ControlPort);*/
     input_port_uri_node = lilv_new_uri (world, LV2_CORE__InputPort);
     output_port_uri_node = lilv_new_uri (world, LV2_CORE__OutputPort);
+	port_property_uri_node = lilv_new_uri (world, LV2_CORE__portProperty);
+	toggled_uri_node = lilv_new_uri (world, LV2_CORE__toggled);
+	integer_uri_node = lilv_new_uri (world, LV2_CORE__integer);
 
 	char* lv2realpath = realpath(lv2dirName, NULL);
 	fprintf(stderr, "LV2 directory: %s\n", lv2realpath);
-#if 1
 	DIR *lv2dir = opendir(lv2dirName);
 	if (!lv2dir) {
 		fprintf(stderr, "Directory %s cannot be opened.\n", lv2dirName);
@@ -114,16 +123,10 @@ int main(int argc, const char **argv)
 		fprintf (stderr, "Loaded bundle. Dumping all plugins from there.\n");
 	}
 	closedir(lv2dir);
-#else	
-	setenv("LV2_PATH", lv2realpath, 1);
-	lilv_world_load_all(world);
-#endif
 
-	fprintf(stderr, "all plugins loaded\n");
+	fprintf(stderr, "all plugins in %s are loaded\n", lv2dirName);
 	
 	const LilvPlugins *plugins = lilv_world_get_all_plugins(world);
-	
-	int numbered_files = 0;
 	
 	char *xmlFilename = (char*) calloc(snprintf(NULL, 0, "%s/aap_metadata.xml", xmldir) + 1, 1);
 	sprintf(xmlFilename, "%s/aap_metadata.xml", xmldir);
@@ -135,7 +138,7 @@ int main(int argc, const char **argv)
 		return 1;
 	}
 	
-	fprintf(xmlFP, "<plugins>");
+	fprintf(xmlFP, "<plugins xmlns=\"%s\" xmlns:pp=\"%s\">\n", AAP_CORE_URL, AAP_PORT_PROPERTIES_URL);
 
 	int numPlugins = lilv_plugins_size(plugins);
 	char **pluginLv2Dirs = (char **) calloc(sizeof(char*) * numPlugins + 1, 1);
@@ -175,34 +178,78 @@ int main(int argc, const char **argv)
 			escape_xml(plugin_lv2dir)
 			);
 		
-		for (int p = 0; p < lilv_plugin_get_num_ports(plugin); p++) {
+		for (uint32_t p = 0; p < lilv_plugin_get_num_ports(plugin); p++) {
 			auto port = lilv_plugin_get_port_by_index(plugin, p);
 			
-			LilvNode *defNode, *minNode, *maxNode;
+			LilvNode *defNode{nullptr}, *minNode{nullptr}, *maxNode{nullptr}, *propertyTypeNode{nullptr};
 			lilv_port_get_range(plugin, port, &defNode, &minNode, &maxNode);
-			char def[1024], min[1024], max[1024];
-			if (defNode != nullptr) std::snprintf(def, 1024, "default=\"%f\"", lilv_node_as_float(defNode)); else def[0] = 0;
-			if (minNode != nullptr) std::snprintf(min, 1024, "minimum=\"%f\"", lilv_node_as_float(minNode)); else min[0] = 0;
-			if (maxNode != nullptr) std::snprintf(max, 1024, "maximum=\"%f\"", lilv_node_as_float(maxNode)); else max[0] = 0;
+			LilvNodes *portProps = lilv_port_get_properties(plugin, port);
+			bool isInteger{false};
+			bool isToggled{false};
+			LILV_FOREACH(nodes, pp, portProps) {
+				auto portProp = lilv_nodes_get(portProps, pp);
+				if (lilv_node_equals(portProp, integer_uri_node))
+					isInteger = true;
+				if (lilv_node_equals(portProp, toggled_uri_node))
+					isToggled = true;
+			}
+			char def[1024], min[1024], max[1024], type[1024];
+			def[0] = 0;
+			min[0] = 0;
+			max[0] = 0;
+			type[0] = 0;
+			if (isToggled) {
+				std::snprintf(type, 1024, "pp:type=\"%s\"", "toggled");
+				if (defNode != nullptr) std::snprintf(def, 1024, "pp:default=\"%s\"", lilv_node_as_bool(defNode)? "1" : "0");
+			} else if (isInteger) {
+				std::snprintf(type, 1024, "pp:type=\"%s\"", "integer");
+				if (defNode != nullptr) std::snprintf(def, 1024, "pp:default=\"%i\"", lilv_node_as_int(defNode));
+				if (minNode != nullptr) std::snprintf(min, 1024, "pp:minimum=\"%i\"", lilv_node_as_int(minNode));
+				if (maxNode != nullptr) std::snprintf(max, 1024, "pp:maximum=\"%i\"", lilv_node_as_int(maxNode));
+			} else {
+				type[0] = 0;
+				if (defNode != nullptr) std::snprintf(def, 1024, "pp:default=\"%f\"", lilv_node_as_float(defNode));
+				if (minNode != nullptr) std::snprintf(min, 1024, "pp:minimum=\"%f\"", lilv_node_as_float(minNode));
+				if (maxNode != nullptr) std::snprintf(max, 1024, "pp:maximum=\"%f\"", lilv_node_as_float(maxNode));
+			}
 			
-			fprintf(xmlFP, "      <port direction=\"%s\" %s %s %s content=\"%s\" name=\"%s\" />\n",
+			fprintf(xmlFP, "      <port direction=\"%s\" %s %s %s %s content=\"%s\" name=\"%s\"",
 				IS_INPUT_PORT(plugin, port) ? "input" : IS_OUTPUT_PORT(plugin, port) ? "output" : "",
-				def, min, max,
+				def, min, max, type,
 				lilv_port_supports_event(plugin, port, midi_event_uri_node) ? "midi" : IS_AUDIO_PORT(plugin, port) ? "audio" : "other",
 				escape_xml(lilv_node_as_string(lilv_port_get_name(plugin, port))));
+			LilvScalePoints* scalePoints = lilv_port_get_scale_points(plugin, port);
+			if (scalePoints != nullptr) {
+			    fprintf(xmlFP, ">\n");
+				LILV_FOREACH(scale_points, spi, scalePoints) {
+					auto sp = lilv_scale_points_get(scalePoints, spi);
+					auto labelNode = lilv_scale_point_get_label(sp);
+					auto valueNode = lilv_scale_point_get_value(sp);
+					auto label = escape_xml(lilv_node_as_string(labelNode));
+					auto value = escape_xml(lilv_node_as_string(valueNode));
+					fprintf(xmlFP, "        <pp:enumeration label=\"%s\" value=\"%s\" />\n", label, value);
+				}
+				fprintf(xmlFP, "      </port>\n");
+				lilv_scale_points_free(scalePoints);
+			}
+			else
+			    fprintf(xmlFP, " />\n");
+
 			if(defNode) lilv_node_free(defNode);
 			if(minNode) lilv_node_free(minNode);
 			if(maxNode) lilv_node_free(maxNode);
+			if(propertyTypeNode) lilv_node_free(propertyTypeNode);
 		}
-		fprintf(xmlFP, "    </ports>\n  </plugin>\n");	
+		fprintf(xmlFP, "    </ports>\n");
+		fprintf(xmlFP, "  </plugin>\n");
 
-		for(int i = 0; i < numPlugins; i++) {
-			if(!pluginLv2Dirs[i]) {
-				pluginLv2Dirs[i] = plugin_lv2dir;
+		for(int p = 0; p < numPlugins; p++) {
+			if(!pluginLv2Dirs[p]) {
+				pluginLv2Dirs[p] = plugin_lv2dir;
 				numPluginDirEntries++;
 				break;
 			}
-			else if(!strcmp(pluginLv2Dirs[i], plugin_lv2dir))
+			else if(!strcmp(pluginLv2Dirs[p], plugin_lv2dir))
 				break;
 		}
 	}
