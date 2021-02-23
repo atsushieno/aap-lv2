@@ -107,8 +107,8 @@ struct AAPLV2URIDs {
 class AAPLV2PluginContext {
 public:
     AAPLV2PluginContext(AAPLV2PluginContextStatics *statics, LilvWorld *world,
-                        const LilvPlugin *plugin, int32_t sampleRate)
-            : statics(statics), world(world), plugin(plugin), sample_rate(sampleRate) {
+                        const LilvPlugin *plugin, const char* pluginUniqueId, int32_t sampleRate)
+            : statics(statics), world(world), plugin(plugin), plugin_id(pluginUniqueId), sample_rate(sampleRate) {
         midi_atom_forge = (LV2_Atom_Forge *) calloc(1024, 1);
         symap = symap_new();
     }
@@ -126,6 +126,7 @@ public:
     LilvWorld *world;
     const LilvPlugin *plugin;
     LilvInstance *instance{nullptr};
+    const char *plugin_id{nullptr};
     int32_t sample_rate;
     AndroidAudioPluginBuffer *cached_buffer{nullptr};
     void *dummy_raw_buffer{nullptr};
@@ -402,7 +403,9 @@ void resetPorts(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *buffer, bo
 }
 
 void aap_lv2_plugin_prepare(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *buffer) {
+    auto l = (AAPLV2PluginContext *) plugin->plugin_specific;
     resetPorts(plugin, buffer, true);
+    aap::aprintf("aap-lv2 plugin %s is ready, prepared.", l->plugin_id);
 }
 
 void aap_lv2_plugin_activate(AndroidAudioPlugin *plugin) {
@@ -768,7 +771,7 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
     assert (plugin);
     assert (lilv_plugin_verify(plugin));
 
-    auto ctx = std::make_unique<AAPLV2PluginContext>(statics, world, plugin, sampleRate);
+    auto ctx = std::make_unique<AAPLV2PluginContext>(statics, world, plugin, pluginUniqueID, sampleRate);
 
     ctx->features.urid_map_feature_data.handle = ctx.get();
     ctx->features.urid_map_feature_data.map = map_uri;
