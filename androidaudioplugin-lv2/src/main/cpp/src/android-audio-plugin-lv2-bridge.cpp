@@ -740,6 +740,8 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
         const char *pluginUniqueID,
         int sampleRate,
         AndroidAudioPluginExtension **extensions) {
+    aap::aprintf("Instantiating aap-lv2 plugin %s", pluginUniqueID);
+
     auto world = lilv_world_new();
     // Here we expect that LV2_PATH is already set using setenv() etc.
     lilv_world_load_all(world);
