@@ -2,8 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="org.androidaudioplugin.aap_ayumi">
 
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -20,7 +18,7 @@
         </activity>
         <activity android:name="org.androidaudioplugin.ui.traditional.LocalPluginDetailsActivity" />
         <service android:name="org.androidaudioplugin.AudioPluginService"
-            android:label="@string/app_name">
+            android:label="@string/app_name" android:exported="true">
             <intent-filter>
                 <action
                     android:name="org.androidaudioplugin.AudioPluginService" />
