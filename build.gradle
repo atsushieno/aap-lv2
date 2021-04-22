@@ -2,7 +2,6 @@
 
 buildscript {
     ext.kotlin_version = '1.4.31'
-    ext.dokkaVersion = '0.9.18'
     repositories {
         google()
         mavenCentral()
@@ -10,9 +9,8 @@ buildscript {
         maven { url 'https://maven.pkg.jetbrains.space/public/p/compose/dev' }
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:7.0.0-alpha10'
+        classpath 'com.android.tools.build:gradle:7.0.0-alpha14'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-        classpath "org.jetbrains.dokka:dokka-android-gradle-plugin:$dokkaVersion"
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files
     }
