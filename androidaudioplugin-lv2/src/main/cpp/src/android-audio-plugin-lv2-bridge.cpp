@@ -499,7 +499,7 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, LV2_Atom_Forg
     // - 14..15: reserved
     int32_t srcN = 32;
 
-    int32_t srcEnd = *((int32_t *) src + 1) + 32; // offset
+    int32_t srcEnd = *((int32_t *) src) + 32; // offset
 
     uint64_t currentJRTimestamp = 0; // unit of 1/31250 sec. (JR_TIMESTAMP_TICKS_PER_SECOND)
 
@@ -556,7 +556,51 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, LV2_Atom_Forg
             break;
         case CMIDI2_MESSAGE_TYPE_MIDI_2_CHANNEL:
             // FIXME: convert MIDI2 to MIDI1 as long as possible
-            midiEventSize = 0;
+            switch (statusCode) {
+                case CMIDI2_STATUS_NOTE_OFF:
+                case CMIDI2_STATUS_NOTE_ON:
+                    midiEventSize = 3;
+                    midi1Bytes[1] = cmidi2_ump_get_midi2_note_note(ump);
+                    midi1Bytes[2] = cmidi2_ump_get_midi2_note_velocity(ump) / 0x100;
+                    break;
+                case CMIDI2_STATUS_PAF:
+                    midiEventSize = 3;
+                    midi1Bytes[1] = cmidi2_ump_get_midi2_paf_note(ump);
+                    midi1Bytes[2] = cmidi2_ump_get_midi2_paf_data(ump) / 0x2000000;
+                    break;
+                case CMIDI2_STATUS_CC:
+                    midiEventSize = 3;
+                    midi1Bytes[1] = cmidi2_ump_get_midi2_cc_index(ump);
+                    midi1Bytes[2] = cmidi2_ump_get_midi2_cc_data(ump) / 0x2000000;
+                    break;
+                case CMIDI2_STATUS_PROGRAM:
+                    if (cmidi2_ump_get_midi2_program_options(ump) == 1) {
+                        midiEventSize = 8;
+                        midi1Bytes[6] = midi1Bytes[0]; // copy
+                        midi1Bytes[7] = cmidi2_ump_get_midi2_program_program(ump);
+                        midi1Bytes[0] = midi1Bytes[6] & 0xF + CMIDI2_STATUS_CC;
+                        midi1Bytes[1] = 0; // Bank MSB
+                        midi1Bytes[2] = cmidi2_ump_get_midi2_program_bank_msb(ump);
+                        midi1Bytes[3] = midi1Bytes[6] & 0xF + CMIDI2_STATUS_CC;
+                        midi1Bytes[4] = 32; // Bank LSB
+                        midi1Bytes[5] = cmidi2_ump_get_midi2_program_bank_lsb(ump);
+                    } else {
+                        midiEventSize = 2;
+                        midi1Bytes[1] = cmidi2_ump_get_midi2_program_program(ump);
+                    }
+                    break;
+                case CMIDI2_STATUS_CAF:
+                    midiEventSize = 2;
+                    midi1Bytes[1] = cmidi2_ump_get_midi2_caf_data(ump);
+                    break;
+                case CMIDI2_STATUS_PITCH_BEND:
+                    midiEventSize = 3;
+                    auto pitchBendV1 = cmidi2_ump_get_midi2_pitch_bend_data(ump) / 0x40000;
+                    midi1Bytes[1] = pitchBendV1 % 0x80;
+                    midi1Bytes[2] = pitchBendV1 / 0x80;
+                    break;
+                // skip for other status bytes; we cannot support them.
+            }
             break;
         case CMIDI2_MESSAGE_TYPE_SYSEX7:
             midiEventSize = 1 + cmidi2_ump_get_sysex7_num_bytes(ump);
