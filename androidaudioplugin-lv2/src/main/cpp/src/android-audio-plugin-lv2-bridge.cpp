@@ -29,6 +29,7 @@
 #include <lv2/buf-size/buf-size.h>
 #include <lv2/options/options.h>
 #include <lv2/state/state.h>
+#include <aap/aap-midi2.h>
 
 #include "cmidi2.h"
 #include "lv2-midi2.h"
@@ -772,6 +773,17 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
     assert (lilv_plugin_verify(plugin));
 
     auto ctx = std::make_unique<AAPLV2PluginContext>(statics, world, plugin, pluginUniqueID, sampleRate);
+
+    for (int i = 0; extensions[i] != nullptr; i++) {
+        auto &ext = extensions[i];
+        if (strcmp(ext->uri, AAP_MIDI_CI_EXTENSION_URI) == 0)
+            // Right now, we switch to possible MIDI 2.0 protocol whenever client (host)
+            // specifies so, regardless of whether the plugin supports it or not.
+            // At this state we convert the incoming UMPs to MIDI 1.0 messages anyways,
+            // and in the future the conversion will be applied optionally if the plugin
+            // does not support MIDI 2.0.
+            ctx->ipc_midi2_enabled = true;
+    }
 
     ctx->features.urid_map_feature_data.handle = ctx.get();
     ctx->features.urid_map_feature_data.map = map_uri;
