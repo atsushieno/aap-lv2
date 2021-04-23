@@ -495,8 +495,8 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, LV2_Atom_Forg
     // The header bytes are structured as:
     // - 0..3: int32_t size
     // - 4..7: reserved
-    // - 8..13: MIDI-CI protocol (MIDI 1.0 or MIDI 2.0)
-    // - 14..15: reserved
+    // - 8..11: MIDI-CI protocol (MIDI 1.0 or MIDI 2.0)
+    // - 12..15: reserved
     int32_t srcN = 32;
 
     int32_t srcEnd = *((int32_t *) src) + 32; // offset
