@@ -134,7 +134,7 @@ public:
     int32_t midi_buffer_size = 1024;
     std::map<int32_t, LV2_Atom_Sequence *> midi_atom_buffers{};
     LV2_Atom_Forge *midi_atom_forge;
-    LV2_URID ump_established_protocol; // between this LV2 bridge and the actual LV2 plugin
+    LV2_URID ump_established_protocol{0}; // between this LV2 bridge and the actual LV2 plugin
     bool ipc_midi2_enabled{false}; // between host app and service (this bridge)
 
     std::unique_ptr<LV2_Feature*> stateFeaturesList()
@@ -499,7 +499,7 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, LV2_Atom_Forg
     // - 12..15: reserved
     int32_t srcN = 32;
 
-    int32_t srcEnd = *((int32_t *) src) + 32; // offset
+    int32_t srcEnd = ((int32_t *) src)[0] + 32; // offset
 
     uint64_t currentJRTimestamp = 0; // unit of 1/31250 sec. (JR_TIMESTAMP_TICKS_PER_SECOND)
 
