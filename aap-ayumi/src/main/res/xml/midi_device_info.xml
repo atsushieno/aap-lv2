@@ -1,0 +1,6 @@
+<devices>
+    <device name="aap-ayumi" manufacturer="androidaudioplugin.org" product="aap-ayumi">
+        <input-port name="input" />
+    </device>
+</devices>
+
