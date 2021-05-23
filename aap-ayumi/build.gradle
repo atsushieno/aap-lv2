@@ -26,7 +26,6 @@ android {
         }
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        consumerProguardFiles "consumer-rules.pro"
     }
 
     buildTypes {
@@ -50,6 +49,7 @@ android {
 
     externalNativeBuild {
         cmake {
+            version "3.18.1"
             path "src/main/CMakeLists.txt"
         }
     }

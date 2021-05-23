@@ -47,10 +47,6 @@ jobs:
         echo y | sudo apt-get install doxygen libgrpc++-dev libgrpc-dev libprotobuf-dev protobuf-compiler protobuf-compiler-grpc graphviz cmake ninja-build liblilv-dev
     - name: stupid NDK setup workaround for GitHub Actions
       run: sudo chmod 777 /usr/local/lib/android/sdk/ && mkdir -p /usr/local/lib/android/sdk/ndk
-    - name: create local.properties
-      run: echo "cmake.dir=/usr" > local.properties
-    - name: in AAP core, workaround for https://github.com/actions/virtual-environments/issues/2228
-      run: echo cmake.dir=/usr > dependencies/android-audio-plugin-framework/java/local.properties
     - name: build
       run: make
     - name: upload artifact
