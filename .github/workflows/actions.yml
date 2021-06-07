@@ -45,7 +45,7 @@ jobs:
       uses: actions/upload-artifact@v2
       with:
         name: aap-mda-lv2-debug.apk
-        path: ./aap-mda-lv2/build/outputs/apk/debug/aap-mda-lv2-debug.apk
+        path: ./aap-ayumi/build/outputs/apk/debug/aap-ayumi-debug.apk
   
   osx-build:
     name: build on osx
