@@ -3,6 +3,7 @@ package org.androidaudioplugin.lv2
 import android.app.Service
 import android.content.ComponentName
 import android.content.Context
+import android.content.pm.PackageManager
 import android.content.res.AssetManager
 import org.androidaudioplugin.AudioPluginLocalHost
 import org.androidaudioplugin.AudioPluginService
@@ -23,9 +24,9 @@ class AudioPluginLV2ServiceExtension : AudioPluginService.Extension
     override fun initialize(context: Context)
     {
         val svcInfo = context.packageManager.getServiceInfo(
-            ComponentName(context, AudioPluginService::class.java), 0)
+            ComponentName(context, AudioPluginService::class.java), PackageManager.GET_META_DATA)
         val isFile = svcInfo.metaData?.getBoolean(LV2_RESOURCE_FROM_FILE, false)
-        val dataAbsDir = context.applicationContext.filesDir.absolutePath
+        val dataAbsDir = context.applicationContext.filesDir.canonicalPath
         if (isFile == true) {
             var lv2Paths = AudioPluginLocalHost.getLocalAudioPluginService(context).plugins
                 .filter { p -> p.backend == "LV2" }
