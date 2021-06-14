@@ -561,7 +561,7 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, LV2_Atom_Forg
                 case CMIDI2_STATUS_NOTE_ON:
                     midiEventSize = 3;
                     midi1Bytes[1] = cmidi2_ump_get_midi2_note_note(ump);
-                    midi1Bytes[2] = cmidi2_ump_get_midi2_note_velocity(ump) / 0x100;
+                    midi1Bytes[2] = cmidi2_ump_get_midi2_note_velocity(ump) / 0x200;
                     break;
                 case CMIDI2_STATUS_PAF:
                     midiEventSize = 3;
