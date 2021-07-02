@@ -14,7 +14,7 @@ build-non-app: \
 	build-java-core
 
 build-aap-core:
-	cd dependencies/android-audio-plugin-framework && make all-no-desktop
+	cd external/android-audio-plugin-framework && make all-no-desktop
 
 ## Build utility
 

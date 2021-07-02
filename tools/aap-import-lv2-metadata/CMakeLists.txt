@@ -2,15 +2,15 @@ cmake_minimum_required(VERSION 3.5.1)
 
 project (aap-import-lv2-metadata)
 
-link_directories("${CMAKE_CURRENT_SOURCE_DIR}/../../dependencies/lv2-desktop/dist/lib")
+link_directories("${CMAKE_CURRENT_SOURCE_DIR}/../../external/lv2-desktop/dist/lib")
 
 add_executable(aap-import-lv2-metadata aap-import-lv2-metadata.cpp)
 
 set (aap-import-lv2-metadata_INCLUDES
-        "../../dependencies/lv2-desktop/dist/include/lilv-0"
-        "../../dependencies/lv2-desktop/dist/include"
+        "../../external/lv2-desktop/dist/include/lilv-0"
+        "../../external/lv2-desktop/dist/include"
         )
-set (ENV{PKG_CONFIG_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/../../dependencies/lv2-desktop/dist/lib/pkgconfig:/usr/local/lib/pkgconfig")
+set (ENV{PKG_CONFIG_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/../../external/lv2-desktop/dist/lib/pkgconfig:/usr/local/lib/pkgconfig")
 
 find_package ( PkgConfig REQUIRED )
 

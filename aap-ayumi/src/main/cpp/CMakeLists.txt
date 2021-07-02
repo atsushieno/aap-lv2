@@ -10,7 +10,7 @@ if (ANDROID)
 
 else (ANDROID)
 
-get_filename_component (AAPDIR "${CMAKE_CURRENT_LIST_DIR}/../../../../dependencies/android-audio-plugin-framework" ABSOLUTE)
+get_filename_component (AAPDIR "${CMAKE_CURRENT_LIST_DIR}/../../../../../external/android-audio-plugin-framework" ABSOLUTE)
 
 set (androidaudioplugin-lv2_INCLUDES
         "${AAPDIR}/native/plugin-api/include"
@@ -19,12 +19,12 @@ set (androidaudioplugin-lv2_INCLUDES
 endif (ANDROID)
 
 set (ayumi-lv2_INCLUDES
-	../../../dependencies/lv2
+	../../../../external/lv2
         )
 
 set (ayumi-lv2_SOURCES
-        ../../../dependencies/ayumi-lv2/ayumi.c
-        ../../../dependencies/ayumi-lv2/ayumi-lv2.c
+        ../../../../external/ayumi-lv2/ayumi.c
+        ../../../../external/ayumi-lv2/ayumi-lv2.c
         )
 
 add_library ( # Specifies the name of the library.

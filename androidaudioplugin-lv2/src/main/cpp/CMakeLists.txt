@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.6)
 
 project(androidaudioplugin-lv2 VERSION 0.1 LANGUAGES C CXX)
 
-set(DEPBASE ../../../../dependencies)
+set(DEPBASE ../../../../external)
 
 if (ANDROID)
 

@@ -1,21 +1,21 @@
 [submodule "dependencies/ayumi-lv2"]
-	path = dependencies/ayumi-lv2
+	path = external/ayumi-lv2
 	url = https://github.com/atsushieno/ayumi-lv2.git
 [submodule "dependencies/android-audio-plugin-framework"]
-	path = dependencies/android-audio-plugin-framework
+	path = external/android-audio-plugin-framework
 	url = https://github.com/atsushieno/android-audio-plugin-framework.git
 [submodule "dependencies/serd"]
-	path = dependencies/serd
+	path = external/serd
 	url = https://github.com/atsushieno/serd.git
 [submodule "dependencies/sord"]
-	path = dependencies/sord
+	path = external/sord
 	url = https://github.com/atsushieno/sord.git
 [submodule "dependencies/sratom"]
-	path = dependencies/sratom
+	path = external/sratom
 	url = https://github.com/atsushieno/sratom.git
 [submodule "dependencies/lilv"]
-	path = dependencies/lilv
+	path = external/lilv
 	url = https://github.com/atsushieno/lilv.git
 [submodule "dependencies/lv2"]
-	path = dependencies/lv2
+	path = external/lv2
 	url = https://github.com/lv2/lv2.git
