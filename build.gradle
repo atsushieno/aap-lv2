@@ -2,8 +2,8 @@
 
 buildscript {
     ext.kotlin_version = '1.5.10'
-    ext.aap_version = '0.6.18'
-    ext.aap_lv2_version = '0.1.17'
+    ext.aap_version = '0.6.19'
+    ext.aap_lv2_version = '0.1.18'
 
     repositories {
         google()
