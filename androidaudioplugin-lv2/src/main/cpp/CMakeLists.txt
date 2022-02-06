@@ -16,7 +16,8 @@ set (androidaudioplugin-lv2_INCLUDES
 		"${AAPDIR}/native/plugin-api/include"
 		"${AAPDIR}/native/androidaudioplugin/core/include")
 link_directories (
-		"${AAPDIR}/java/androidaudioplugin/build/intermediates/merged_native_libs/debug/out/lib/${CMAKE_ANDROID_ARCH_ABI}"
+		# FIXME: do not reference `debug` directory.
+		"${AAPDIR}/androidaudioplugin/build/intermediates/merged_native_libs/debug/out/lib/${CMAKE_ANDROID_ARCH_ABI}"
 )
 endif ()
 
