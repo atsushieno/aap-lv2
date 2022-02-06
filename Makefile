@@ -14,7 +14,10 @@ build-non-app: \
 	build-java-core
 
 build-aap-core:
-	cd external/android-audio-plugin-framework && make all-no-desktop
+	if [ ! -f external/android-audio-plugin-framework/local.properties ] ; then \
+		echo "sdk.dir=$(HOME)/Android/Sdk" > external/android-audio-plugin-framework/local.properties ; \
+	fi
+	cd external/android-audio-plugin-framework && ./gradlew publishToMavenLocal
 
 ## Build utility
 
