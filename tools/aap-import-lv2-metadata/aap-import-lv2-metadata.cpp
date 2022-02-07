@@ -12,6 +12,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <iostream>
 #include <string>
 #include <serd/serd.h>
 #include <sord/sord.h>
@@ -200,7 +201,7 @@ int main(int argc, const char **argv)
 			type[0] = 0;
 			if (isToggled) {
 				std::snprintf(type, 1024, "pp:type=\"%s\"", "toggled");
-				if (defNode != nullptr) std::snprintf(def, 1024, "pp:default=\"%s\"", lilv_node_as_bool(defNode)? "1" : "0");
+				if (defNode != nullptr) std::snprintf(def, 1024, "pp:default=\"%s\"", lilv_node_as_float(defNode) > 0.0 ? "1" : "0");
 			} else if (isInteger) {
 				std::snprintf(type, 1024, "pp:type=\"%s\"", "integer");
 				if (defNode != nullptr) std::snprintf(def, 1024, "pp:default=\"%i\"", lilv_node_as_int(defNode));
