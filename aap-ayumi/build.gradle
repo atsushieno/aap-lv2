@@ -28,6 +28,8 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    ndkVersion "$ndk_version"
+
     buildTypes {
         debug {
             packagingOptions {
