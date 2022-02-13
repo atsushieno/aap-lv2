@@ -342,17 +342,16 @@ jalv_worker_emit_responses(JalvWorker* worker, LilvInstance* instance)
 void aap_lv2_plugin_delete(
         AndroidAudioPluginFactory *,
         AndroidAudioPlugin *plugin) {
-    auto ctx = (AAPLV2PluginContext *) plugin->plugin_specific;
+    auto l = (AAPLV2PluginContext *) plugin->plugin_specific;
 
-    ctx->terminate = true;
+    l->terminate = true;
 
     // Terminate the worker
-    jalv_worker_finish(&ctx->worker);
+    jalv_worker_finish(&l->worker);
 
     // Destroy the worker
-    jalv_worker_destroy(&ctx->worker);
+    jalv_worker_destroy(&l->worker);
 
-    auto l = (AAPLV2PluginContext *) plugin->plugin_specific;
     free(l->dummy_raw_buffer);
     lilv_instance_free(l->instance);
     lilv_node_free(l->statics->audio_port_uri_node);
@@ -816,7 +815,7 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
     assert (plugin);
     assert (lilv_plugin_verify(plugin));
 
-    auto ctx = std::make_unique<AAPLV2PluginContext>(statics, world, plugin, pluginUniqueID, sampleRate);
+    auto ctx = new AAPLV2PluginContext(statics, world, plugin, pluginUniqueID, sampleRate);
 
     for (int i = 0; extensions[i] != nullptr; i++) {
         auto &ext = extensions[i];
@@ -829,15 +828,15 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
             ctx->ipc_midi2_enabled = true;
     }
 
-    ctx->features.urid_map_feature_data.handle = ctx.get();
+    ctx->features.urid_map_feature_data.handle = ctx;
     ctx->features.urid_map_feature_data.map = map_uri;
-    ctx->features.urid_unmap_feature_data.handle = ctx.get();
+    ctx->features.urid_unmap_feature_data.handle = ctx;
     ctx->features.urid_unmap_feature_data.unmap = unmap_uri;
 
     assert(!zix_sem_init(&ctx->symap_lock, 1));
     assert(!zix_sem_init(&ctx->work_lock, 1));
-    ctx->worker.ctx = ctx.get();
-    ctx->state_worker.ctx = ctx.get();
+    ctx->worker.ctx = ctx;
+    ctx->state_worker.ctx = ctx;
 
     ctx->features.worker_schedule_data.handle = &ctx->worker;
     ctx->features.worker_schedule_data.schedule_work = aap_lv2_schedule_work;
@@ -846,15 +845,15 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
 
     ctx->features.minBlockLengthOption = {LV2_OPTIONS_INSTANCE,
         0,
-        map_uri(ctx.get(), LV2_BUF_SIZE__minBlockLength),
+        map_uri(ctx, LV2_BUF_SIZE__minBlockLength),
         sizeof(int),
-        map_uri(ctx.get(), LV2_ATOM__Int),
+        map_uri(ctx, LV2_ATOM__Int),
         &ctx->features.minBlockLengthValue};
     ctx->features.maxBlockLengthOption = {LV2_OPTIONS_INSTANCE,
                                           0,
-                                          map_uri(ctx.get(), LV2_BUF_SIZE__maxBlockLength),
+                                          map_uri(ctx, LV2_BUF_SIZE__maxBlockLength),
                                           sizeof(int),
-                                          map_uri(ctx.get(), LV2_ATOM__Int),
+                                          map_uri(ctx, LV2_ATOM__Int),
                                           &ctx->features.maxBlockLengthValue};
 
     LV2_Options_Option options[3];
@@ -902,7 +901,7 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
     bool hasUMPPort = false;
     for (int i = 0; i < nPorts; i++) {
         const LilvPort* portNode = lilv_plugin_get_port_by_index(plugin, i);
-        if (IS_ATOM_PORT(ctx.get(), plugin, portNode)) {
+        if (IS_ATOM_PORT(ctx, plugin, portNode)) {
             LilvNodes* supports = lilv_port_get_value(plugin, portNode, ctx->statics->atom_supports_uri_node);
             if (!lilv_nodes_contains(supports, ctx->statics->midi2_UMP_uri_node))
                 hasUMPPort = true;
@@ -922,9 +921,9 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
         const LV2_Worker_Interface* iface = (const LV2_Worker_Interface*)
                 lilv_instance_get_extension_data(ctx->instance, LV2_WORKER__interface);
 
-        jalv_worker_init(ctx.get(), &ctx->worker, iface, true);
+        jalv_worker_init(ctx, &ctx->worker, iface, true);
         if (ctx->safe_restore) {
-            jalv_worker_init(ctx.get(), &ctx->state_worker, iface, false);
+            jalv_worker_init(ctx, &ctx->state_worker, iface, false);
         }
     }
 
@@ -932,8 +931,8 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
         ctx->ump_established_protocol = (LV2_URID) (int64_t) lilv_instance_get_extension_data(ctx->instance, LV2_MIDI2__establishedProtocol);
     }
 
-    return new AndroidAudioPlugin{
-            ctx.release(),
+    auto ret = new AndroidAudioPlugin{
+            ctx,
             aap_lv2_plugin_prepare,
             aap_lv2_plugin_activate,
             aap_lv2_plugin_process,
@@ -941,6 +940,8 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
             aap_lv2_plugin_get_state,
             aap_lv2_plugin_set_state
     };
+    aap::aprintf("Instantiated aap-lv2 plugin %s", pluginUniqueID);
+    return ret;
 }
 
 } // namespace aaplv2bridge
