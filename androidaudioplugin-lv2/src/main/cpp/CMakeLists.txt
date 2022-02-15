@@ -63,7 +63,7 @@ set (androidaudioplugin-lv2_INCLUDES
 
 set (androidaudioplugin-lv2_SOURCES
 		"src/android-audio-plugin-lv2-bridge.cpp"
-		"src/AudioPluginLV2LocalHost_native.cpp"
+		"src/AudioPluginLV2LocalHost_jni.cpp"
 		"src/symap.cpp"
 		"src/zix/ring.cpp"
 
