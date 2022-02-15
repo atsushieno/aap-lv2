@@ -405,7 +405,7 @@ void resetPorts(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *buffer, bo
 void aap_lv2_plugin_prepare(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *buffer) {
     auto l = (AAPLV2PluginContext *) plugin->plugin_specific;
     resetPorts(plugin, buffer, true);
-    aap::aprintf("aap-lv2 plugin %s is ready, prepared.", l->plugin_id);
+    aap::a_log_f(AAP_LOG_LEVEL_INFO, "aap-lv2", "LV2 plugin %s is ready, prepared.", l->plugin_id);
 }
 
 void aap_lv2_plugin_activate(AndroidAudioPlugin *plugin) {
@@ -708,7 +708,7 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
 #if JUCEAAP_LOG_PERF
     clock_gettime(CLOCK_REALTIME, &timeSpecEnd);
     long timeDiff = (timeSpecEnd.tv_sec - timeSpecBegin.tv_sec) * 1000000000 + timeSpecEnd.tv_nsec - timeSpecBegin.tv_nsec;
-    aap::aprintf("AAP LV2Bridge Perf: time diff %ld / %ld", timeDiff, timeoutInNanoseconds);
+    aap::a_log_f(AAP_LOG_LEVEL_DEBUG, "aap-lv2", AAP LV2Bridge Perf: time diff %ld / %ld", timeDiff, timeoutInNanoseconds);
 #endif
 }
 
@@ -787,7 +787,7 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
         const char *pluginUniqueID,
         int sampleRate,
         AndroidAudioPluginExtension **extensions) {
-    aap::aprintf("Instantiating aap-lv2 plugin %s", pluginUniqueID);
+    aap::a_log_f(AAP_LOG_LEVEL_INFO, "aap-lv2", "Instantiating aap-lv2 plugin %s", pluginUniqueID);
 
     auto world = lilv_world_new();
     // Here we expect that LV2_PATH is already set using setenv() etc.
@@ -805,15 +805,31 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
     statics->midi2_UMP_uri_node = lilv_new_uri(world, LV2_MIDI2__UMP);
 
     auto allPlugins = lilv_world_get_all_plugins(world);
-    assert(lilv_plugins_size(allPlugins) > 0);
+    if (lilv_plugins_size(allPlugins) <= 0) {
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, "aap-lv2", "No LV2 plugins were found.");
+        return nullptr;
+    }
 
     // LV2 Plugin URI is just LV2 URI prefixed by "lv2".
-    assert (!strncmp(pluginUniqueID, "lv2:", strlen("lv2:")));
+    if (strncmp(pluginUniqueID, "lv2:", strlen("lv2:"))) {
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, "aap-lv2", "Unexpected AAP LV2 pluginId: %s", pluginUniqueID);
+        return nullptr;
+    }
     auto pluginUriNode = lilv_new_uri(world, pluginUniqueID + strlen("lv2:"));
     const LilvPlugin *plugin = lilv_plugins_get_by_uri(allPlugins, pluginUriNode);
     lilv_node_free(pluginUriNode);
-    assert (plugin);
-    assert (lilv_plugin_verify(plugin));
+    if (!plugin) {
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, "aap-lv2", "LV2 plugin could not be instantiated: %s",
+                     lilv_node_as_uri(pluginUriNode));
+        return nullptr;
+    }
+    if (!lilv_plugin_verify(plugin)) {
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, "aap-lv2", "LV2 plugin is invalid: %s",
+                     lilv_node_as_uri(pluginUriNode));
+        return nullptr;
+    }
+
+    aap::a_log_f(AAP_LOG_LEVEL_INFO, "aap-lv2", "Plugin %s is valid, ready to instantiate.", pluginUniqueID);
 
     auto ctx = new AAPLV2PluginContext(statics, world, plugin, pluginUniqueID, sampleRate);
 
@@ -833,8 +849,16 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
     ctx->features.urid_unmap_feature_data.handle = ctx;
     ctx->features.urid_unmap_feature_data.unmap = unmap_uri;
 
-    assert(!zix_sem_init(&ctx->symap_lock, 1));
-    assert(!zix_sem_init(&ctx->work_lock, 1));
+    if (zix_sem_init(&ctx->symap_lock, 1)) {
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, "aap-lv2", "Failed to initialize semaphore (symap). plugin: %s",
+                     lilv_node_as_uri(pluginUriNode));
+        return nullptr;
+    }
+    if (zix_sem_init(&ctx->work_lock, 1)) {
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, "aap-lv2", "Failed to initialize semaphore (work_lock). plugin: %s",
+                     lilv_node_as_uri(pluginUriNode));
+        return nullptr;
+    }
     ctx->worker.ctx = ctx;
     ctx->state_worker.ctx = ctx;
 
@@ -879,10 +903,18 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
     };
 
     // for jalv worker
-    assert(!zix_sem_init(&ctx->worker.sem, 0));
+    if (zix_sem_init(&ctx->worker.sem, 0)) {
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, "aap-lv2", "Failed to initialize semaphore on worker. plugin: %s",
+                     lilv_node_as_uri(pluginUriNode));
+        return nullptr;
+    }
 
     LilvInstance *instance = lilv_plugin_instantiate(plugin, sampleRate, features);
-    assert (instance);
+    if (!instance) {
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, "aap-lv2", "Failed to instantiate plugin: %s",
+                     lilv_node_as_uri(pluginUriNode));
+        return nullptr;
+    }
     ctx->instance = instance;
 
     auto map = &ctx->features.urid_map_feature_data;
@@ -940,7 +972,7 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
             aap_lv2_plugin_get_state,
             aap_lv2_plugin_set_state
     };
-    aap::aprintf("Instantiated aap-lv2 plugin %s", pluginUniqueID);
+    aap::a_log_f(AAP_LOG_LEVEL_INFO, "aap-lv2", "Instantiated aap-lv2 plugin %s", pluginUniqueID);
     return ret;
 }
 
