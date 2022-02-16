@@ -57,8 +57,11 @@ typedef struct {
 } AAPLV2PluginContextStatics;
 
 // imported from jalv
+class AAPLV2PluginContext;
+typedef AAPLV2PluginContext Jalv;
+
 typedef struct {
-    void*                       ctx;       ///< Pointer back to AAPLV2PluginContext
+    Jalv*                       ctx;       ///< Pointer back to AAPLV2PluginContext
     ZixRing*                    requests{nullptr};   ///< Requests to the worker
     ZixRing*                    responses{nullptr};  ///< Responses from the worker
     void*                       response;   ///< Worker response buffer
@@ -161,7 +164,7 @@ public:
     JalvWorker         state_worker;   ///< Synchronous worker for state restore
     ZixSem             work_lock;      ///< Lock for plugin work() method
     bool               safe_restore{false};   ///< Plugin restore() is thread-safe
-    bool terminate{false};
+    bool exit{false};
 };
 
 static LV2_URID
@@ -211,8 +214,7 @@ PORTCHECKER_AND (IS_ATOM_IN, IS_ATOM_PORT, IS_INPUT_PORT)
 
 PORTCHECKER_AND (IS_ATOM_OUT, IS_ATOM_PORT, IS_OUTPUT_PORT)
 
-// The code below (jalv_xxx) is imported from jalv and then modified.
-
+// The code below (jalv_worker_xxx) is copied from jalv worker.c and then made minimum required changes.
 
 static LV2_Worker_Status
 jalv_worker_respond(LV2_Worker_Respond_Handle handle,
@@ -229,11 +231,11 @@ static void*
 worker_func(void* data)
 {
     JalvWorker* worker = (JalvWorker*)data;
-    auto       ctx   = (AAPLV2PluginContext*) worker->ctx;
+    Jalv*       jalv   = worker->ctx;
     void*       buf    = NULL;
     while (true) {
         zix_sem_wait(&worker->sem);
-        if (ctx->terminate) {
+        if (jalv->exit) {
             break;
         }
 
@@ -248,10 +250,10 @@ worker_func(void* data)
 
         zix_ring_read(worker->requests, (char*)buf, size);
 
-        zix_sem_wait(&ctx->work_lock);
+        zix_sem_wait(&jalv->work_lock);
         worker->iface->work(
-                ctx->instance->lv2_handle, jalv_worker_respond, worker, size, buf);
-        zix_sem_post(&ctx->work_lock);
+                jalv->instance->lv2_handle, jalv_worker_respond, worker, size, buf);
+        zix_sem_post(&jalv->work_lock);
     }
 
     free(buf);
@@ -259,10 +261,11 @@ worker_func(void* data)
 }
 
 void
-jalv_worker_init(AAPLV2PluginContext*,
-JalvWorker*                 worker,
-const LV2_Worker_Interface* iface,
-bool                        threaded) {
+jalv_worker_init(Jalv*                       ZIX_UNUSED(jalv),
+                 JalvWorker*                 worker,
+                 const LV2_Worker_Interface* iface,
+                 bool                        threaded)
+{
     worker->iface = iface;
     worker->threaded = threaded;
     if (threaded) {
@@ -271,7 +274,7 @@ bool                        threaded) {
         zix_ring_mlock(worker->requests);
     }
     worker->responses = zix_ring_new(4096);
-    worker->response = malloc(4096);
+    worker->response  = malloc(4096);
     zix_ring_mlock(worker->responses);
 }
 
@@ -302,7 +305,7 @@ jalv_worker_schedule(LV2_Worker_Schedule_Handle handle,
                      const void*                data)
 {
     JalvWorker* worker = (JalvWorker*)handle;
-    auto       ctx   = (AAPLV2PluginContext*) worker->ctx;
+    Jalv*       jalv   = worker->ctx;
     if (worker->threaded) {
         // Schedule a request to be executed by the worker thread
         zix_ring_write(worker->requests, (const char*)&size, sizeof(size));
@@ -310,10 +313,10 @@ jalv_worker_schedule(LV2_Worker_Schedule_Handle handle,
         zix_sem_post(&worker->sem);
     } else {
         // Execute work immediately in this thread
-        zix_sem_wait(&ctx->work_lock);
+        zix_sem_wait(&jalv->work_lock);
         worker->iface->work(
-                ctx->instance->lv2_handle, jalv_worker_respond, worker, size, data);
-        zix_sem_post(&ctx->work_lock);
+                jalv->instance->lv2_handle, jalv_worker_respond, worker, size, data);
+        zix_sem_post(&jalv->work_lock);
     }
     return LV2_WORKER_SUCCESS;
 }
@@ -344,7 +347,7 @@ void aap_lv2_plugin_delete(
         AndroidAudioPlugin *plugin) {
     auto l = (AAPLV2PluginContext *) plugin->plugin_specific;
 
-    l->terminate = true;
+    l->exit = true;
 
     // Terminate the worker
     jalv_worker_finish(&l->worker);

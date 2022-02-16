@@ -65,7 +65,7 @@ set (androidaudioplugin-lv2_SOURCES
 		"src/android-audio-plugin-lv2-bridge.cpp"
 		"src/AudioPluginLV2LocalHost_jni.cpp"
 		"src/symap.cpp"
-		"src/zix/ring.cpp"
+		"src/zix/ring.c"
 
 		"src/std_workaround.c"
 		"src/abstract_io.c"
@@ -141,6 +141,7 @@ target_compile_options (androidaudioplugin-lv2
         PRIVATE
         -Wall
         -Wshadow
+		-DHAVE_MLOCK=1
         # uncomment this if you want to enable AddressSanitizer
         #-fsanitize=address -fno-omit-frame-pointer
         )
