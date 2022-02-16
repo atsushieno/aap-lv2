@@ -115,6 +115,9 @@ public:
             : statics(statics), world(world), plugin(plugin), plugin_id(pluginUniqueId), sample_rate(sampleRate) {
         midi_atom_forge = (LV2_Atom_Forge *) calloc(1024, 1);
         symap = symap_new();
+        // They don't have default assignment...
+        worker.threaded = false;
+        state_worker.threaded = false;
     }
 
     ~AAPLV2PluginContext() {
