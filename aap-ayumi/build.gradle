@@ -64,7 +64,9 @@ android {
     }
 
     packagingOptions {
-        //doNotStrip "*/*/*.so" // debuggable!
+        // for debugging and ASan settings
+        //doNotStrip "*/*/*.so"
+        //jniLibs.useLegacyPackaging = true
     }
 }
 

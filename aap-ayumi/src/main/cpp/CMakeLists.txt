@@ -61,3 +61,22 @@ target_link_libraries(ayumi-lv2 ${ayumi-lv2_LIBS})
 else (BUILD_WITH_PREFAB)
 target_link_libraries(ayumi-lv2 android log)
 endif (BUILD_WITH_PREFAB)
+
+# set non-zero this if you want to debug with AddressSanitizer
+set(AAP_DEBUG_WITH_ASAN 0)
+
+if (AAP_DEBUG_WITH_ASAN)
+    target_compile_options(ayumi-lv2
+            PUBLIC
+            -fsanitize=address -fno-omit-frame-pointer
+            )
+
+    target_link_options(ayumi-lv2
+            PUBLIC
+            -fsanitize=address
+            )
+
+    set_target_properties(ayumi-lv2
+            PROPERTIES LINK_FLAGS -fsanitize=address
+            )
+endif()
