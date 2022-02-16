@@ -148,13 +148,8 @@ target_compile_options (androidaudioplugin-lv2
 
 target_link_libraries (androidaudioplugin-lv2 ${androidaudioplugin-lv2_LIBS})
 
-# uncomment this if you want to enable AddressSanitizer
-#set_target_properties(androidaudioplugin-lv2 PROPERTIES LINK_FLAGS -fsanitize=address)
-
-# set non-zero this if you want to debug with AddressSanitizer
-set(AAP_DEBUG_WITH_ASAN 0)
-
-if (AAP_DEBUG_WITH_ASAN)
+# You can set it via build.gradle.
+if (${AAP_ENABLE_ASAN})
     target_compile_options(androidaudioplugin-lv2
             PUBLIC
             -fsanitize=address -fno-omit-frame-pointer
