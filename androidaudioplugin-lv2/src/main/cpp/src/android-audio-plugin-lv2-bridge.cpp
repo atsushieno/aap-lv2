@@ -644,7 +644,7 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
                             long timeoutInNanoseconds) {
     // FIXME: use timeoutInNanoseconds?
 
-#if JUCEAAP_LOG_PERF
+#if AAP_LV2_LOG_PERF
     struct timespec timeSpecBegin, timeSpecEnd;
     clock_gettime(CLOCK_REALTIME, &timeSpecBegin);
 #endif
@@ -711,7 +711,7 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
 
     // FIXME: there should be another set of converters that transforms LV2 MIDI outputs into AAP MIDI stream (either 1.0 or 2.0)
 
-#if JUCEAAP_LOG_PERF
+#if AAP_LV2_LOG_PERF
     clock_gettime(CLOCK_REALTIME, &timeSpecEnd);
     long timeDiff = (timeSpecEnd.tv_sec - timeSpecBegin.tv_sec) * 1000000000 + timeSpecEnd.tv_nsec - timeSpecBegin.tv_nsec;
     aap::a_log_f(AAP_LOG_LEVEL_DEBUG, "aap-lv2", AAP LV2Bridge Perf: time diff %ld / %ld", timeDiff, timeoutInNanoseconds);
