@@ -8,6 +8,7 @@ There are also dedicated repos for non-trivial LV2 plugin ports and so on:
 - [aap-lv2-fluidsynth](https://github.com/atsushieno/aap-lv2-fluidsynth/)
 - [aap-lv2-sfizz](https://github.com/atsushieno/aap-lv2-sfizz)
 - [aap-lv2-guitarix](https://github.com/atsushieno/aap-lv2-guitarix)
+- [aap-lv2-string-machine](https://github.com/atsushieno/aap-lv2-string-machine)
 
 
 ## Building
@@ -37,7 +38,7 @@ There are couple of steps to import existing LV2 plugsin into AAP world:
 
 The dependency Android binaries are built from [android-native-audio-builders](https://github.com/atsushieno/android-native-audio-builders) repository. It builds LV2/lilv dependencies as well as plugin sample binaries.
 
-For LV2, mda-lv2, and guitarix, the `make` step lets it download from the release tarballs.
+For LV2, guitarix and string-machine, the `make` step lets it download from the release tarballs.
 
 ### directory structure conversion
 
@@ -60,7 +61,7 @@ Those `lib/*.lv2/*.so` files cannot be dynamically loaded unlike Linux desktop, 
 - `assets/foo.lv2/foo.ttl`
 - `lib/{abi}/foo.so`
 
-The `import-lv2-deps.sh` does this task for `aap-mda-lv2` (in its own repo). Similarly, `import-guitarix-deps.sh` does it for `aap-guitarix` (ditto).
+The `import-lv2-deps.sh` does this task for `aap-mda-lv2` (in its own repo). Similarly, `import-guitarix-deps.sh` does it for `aap-guitarix` (ditto), and so on.
 
 Note that this directory layout is different from source directory. In the sources, those `.so` files are placed under `src/main/jniLibs`.
 
