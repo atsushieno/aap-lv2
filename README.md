@@ -24,6 +24,7 @@ LV2 Dynamic Manifest feature expects that the hosting environment has access to 
 
 Also, LV2 State `makePath` and `mapPath` features are not supported for the same reason (while they are meant to make things relocatable across platforms).
 
+LV2 UI implementation varies and most of those are not designed to be portable to Android. Therefore none of the UIs are ported and there is no immediate chance to get them covered in AAP.
 
 ## Importing LV2 plugins
 
@@ -36,13 +37,13 @@ There are couple of steps to import existing LV2 plugsin into AAP world:
 
 ### building plugin binaries for Android ABIs
 
-The dependency Android binaries are built from [android-native-audio-builders](https://github.com/atsushieno/android-native-audio-builders) repository. It builds LV2/lilv dependencies as well as plugin sample binaries.
+Those binaries from LV2 SDK are built from source in `androidaudioplugin-lv2` module.
 
-For LV2, guitarix and string-machine, the `make` step lets it download from the release tarballs.
+Some dependency Android binaries in some porting apps are built from [android-native-audio-builders](https://github.com/atsushieno/android-native-audio-builders) repository. Namely, DPF plugin ports are built there.
 
 ### directory structure conversion
 
-AAP-LV2 packaging is not straightforward, because the file layouts is differrent from that on Linux. Android native libraries are usually packaged like:
+From desktop LV2 plugin developers' point of view, AAP-LV2 packaging is not straightforward, because the file layouts is differrent from that on Linux. Android native libraries are usually packaged like:
 
 - `lib/armeabi-v7a/libfoo.so`
 - `lib/arm64-v8a/libfoo.so`
@@ -55,7 +56,7 @@ while normal `lv2` packages usually look like:
 - `lib/foo.lv2/foo.ttl`
 - `lib/foo.lv2/foo.so`
 
-Those `lib/*.lv2/*.so` files cannot be dynamically loaded unlike Linux desktop, so they have to be moved to `lib/*/` directory. Other LV2 manifests are packaged under `assets/lv2` directory. Therefore, the file layout in the final apk is:
+Those `lib/*.lv2/*.so` files cannot be dynamically loaded unlike Linux desktop. They have to be moved to `lib/[cpu-arch]/` directory in the apk. Other LV2 manifests are packaged under `assets/lv2` directory. Therefore, the file layout in the final apk is:
 
 - `assets/foo.lv2/manifest.ttl`
 - `assets/foo.lv2/foo.ttl`
@@ -89,7 +90,7 @@ There are couple of LV2 features such as LV2 Dynamic Manifest, and they will not
 
 There is a big limitation on Android platform: it is not possible to get list of asset directories in Android, meaning that querying audio plugins based on the filesystem is not doable. All those plugins must be therefore explicitly listed at some manifest.
 
-To address this issue, AAP-LV2 plugin service takes a list of LV2 asset paths from `aap_metadata.xml`, which are used for `LV2_PATH` settings. It is taken care by `org.androidaudioplugin.lv2.AudioPluginLV2ServiceExtension` and plugin developers shouldn't have to worry about it, as long as they add the following metadata within `<service>` for AudioPluginService:
+To address this issue, AAP-LV2 plugin service takes a list of LV2 asset paths from `aap_metadata.xml`, which are used for `LV2_PATH` settings. It is taken care by `org.androidaudioplugin.lv2.AudioPluginLV2ServiceExtension` and plugin developers shouldn't have to worry about it, as long as they add the following metadata within `<service>` for AudioPluginService in `AndroidManifest.xml`:
 
 ```
 <meta-data
@@ -103,7 +104,7 @@ To address this issue, AAP-LV2 plugin service takes a list of LV2 asset paths fr
 Sometimes, depending on how we implement a plugin, we might want to resolve files either from assets or in the local user (file) storage. By default, it resolves resources from the assets.
 But if any plugin implementation code depends on file access API (stdio, std C++ API, std::filesystem etc.) or needs file writes (not just reads), we can indicate the plugin to read and write files.
 It is Service-level specification.
-To indicate file I/O instead of assets I/O, add this element under the `<service>` element for `org.androidaudioplugin.AudioPluginService`:
+To indicate file I/O instead of assets I/O, add this element under the `<service>` element for `org.androidaudioplugin.AudioPluginService` in `AndroidManifest.xml`:
 
 ```
 <meta-data
@@ -116,48 +117,46 @@ To indicate file I/O instead of assets I/O, add this element under the `<service
 
 We provide a metadata generator tool `app-import-lv2-metadata` and ask LV2 plugin developers (importers) to describe everything in `aap-metadata.xml`.
 
+For example (running on [string-machine port](https://github.com/atsushieno/aap-lv2-string-machine)):
+
 ```
-$ ./aap-import-lv2-metadata [lv2path] [res_xml_path]
-(...)
-LV2 directory: /sources/android-audio-plugin-framework/java/samples/aaphostsample/src/main/assets/lv2
-Loading from /sources/android-audio-plugin-framework/java/samples/aaphostsample/src/main/assets/lv2/ui.lv2/manifest.ttl
+$ aap-import-lv2-metadata
+Usage: aap-import-lv2-metadata [lib-lv2-dir] [res-xml-dir]
+$ aap-import-lv2-metadata app/src/main/assets/lv2 app/src/main/res/xml
+Loading from /sources/AAP/aap-lv2-string-machine/app/src/main/assets/lv2/string-machine.lv2/manifest.ttl
 Loaded bundle. Dumping all plugins from there.
-all plugins loaded
-Writing metadata file java/samples/aaphostsample/src/main/res/xml/aap_metadata.xml
+Loading from /sources/AAP/aap-lv2-string-machine/app/src/main/assets/lv2/string-machine-chorus.lv2/manifest.ttl
+Loaded bundle. Dumping all plugins from there.
+Loading from /sources/AAP/aap-lv2-string-machine/app/src/main/assets/lv2/string-machine-chorus-stereo.lv2/manifest.ttl
+Loaded bundle. Dumping all plugins from there.
+all plugins in app/src/main/assets/lv2 are loaded
+Writing metadata file app/src/main/res/xml/aap_metadata.xml
 done.
 
-$ cat res/xml/metadata0.xml 
-<plugins>
-  <plugin backend="LV2" name="Example MIDI Gate" category="Effect" author="" manufacturer="http://lv2plug.in/ns/lv2" unique-id="lv2:http://lv2plug.in/plugins/eg-midigate" library="..." entrypoint="...">
+$  cat app/src/main/res/xml/aap_metadata.xml 
+<plugins xmlns="urn:org.androidaudioplugin.core" xmlns:pp="urn:org.androidaudioplugin.port">
+  <plugin backend="LV2" name="String machine chorus" category="Effect" author="Jean Pierre Cimalando" manufacturer="" unique-id="lv2:http://jpcima.sdf1.org/lv2/string-machine-chorus" library="libandroidaudioplugin-lv2.so" entrypoint="GetAndroidAudioPluginFactoryLV2Bridge" assets="/lv2/string-machine-chorus.lv2/">
     <ports>
-      <port direction="input" content="midi" name="Control" />
-      <port direction="input" content="audio" name="In" />
-      <port direction="output" content="audio" name="Out" />
-    </ports>
-  </plugin>
-</plugins>
-$ cat manifest-fragment.xml 
-<plugins>
-  <plugin backend="LV2" name="MDA Ambience" category="Effect" author="David Robillard" manufacturer="http://drobilla.net/plugins/mda/" unique-id="lv2:http://drobilla.net/plugins/mda/Ambience" library="libandroidaudioplugin-lv2.so" entrypoint="GetAndroidAudioPluginFactoryLV2Bridge" assets="/lv2/mda.lv2/">
-    <ports>
-      <port direction="input" default="0.700000" minimum="0.000000" maximum="1.000000" content="other" name="Size" />
-      <port direction="input" default="0.700000" minimum="0.000000" maximum="1.000000" content="other" name="HF Damp" />
-      <port direction="input" default="0.900000" minimum="0.000000" maximum="1.000000" content="other" name="Mix" />
-      <port direction="input" default="0.500000" minimum="0.000000" maximum="1.000000" content="other" name="Output" />
-      <port direction="input"    content="audio" name="Left In" />
-      <port direction="input"    content="audio" name="Right In" />
-      <port direction="output"    content="audio" name="Left Out" />
-      <port direction="output"    content="audio" name="Right Out" />
-    </ports>
-  </plugin>
+      <port direction="input"     content="audio" name="Audio Input 1" />
+      <port direction="output"     content="audio" name="Audio Output 1" />
+      <port direction="output"     content="audio" name="Audio Output 2" />
   ...
+  <plugin backend="LV2" name="String machine" category="Instrument" author="Jean Pierre Cimalando" manufacturer="" unique-id="lv2:http://jpcima.sdf1.org/lv2/string-machine-mk2" library="libandroidaudioplugin-lv2.so" entrypoint="GetAndroidAudioPluginFactoryLV2Bridge" assets="/lv2/string-machine.lv2/">
+    <ports>
+      <port direction="output"     content="audio" name="Audio Output 1" />
+      <port direction="output"     content="audio" name="Audio Output 2" />
+      <port direction="input"     content="midi" name="Events Input" />
+      <port direction="input" pp:default="0.001600" pp:minimum="0.000000" pp:maximum="1.000000"  content="other" name="Oscillator detune" />
+      <port direction="input" pp:default="8.000000" pp:minimum="-20.000000" pp:maximum="60.000000"  content="other" name="Oscillator HP Cutoff 4_" />
+  ...
+
 ```
 
 For `content`, if a port is `atom:atomPort` and `atom:supports` has `midi:MidiEvent`, then it is `midi`. Any LV2 port that is `lv2:AudioPort` are regarded as `audio`. Anything else is `other` in AAP.
 
 The plugin `category` becomes `Instrument` if and only if it is `lv2:InstrumentPlugin`. Anything else falls back to `Effect`.
 
-We don't detect any impedance mismatch between TTL and metadata XML; LV2 backend implementation uses "lilv" which only loads TTL. lilv doesn't assure port description correctness in TTL either (beyond what lv2validate does as a tool, not runtime).
+We don't detect any impedance mismatch between TTL and metadata XML; LV2 backend implementation uses ["lilv"](https://gitlab.com/lv2/lilv/) which only loads TTL. lilv doesn't assure port description correctness in TTL either (beyond what `lv2validate` does as a tool, not runtime).
 
 (We decided to NOT support shorthand metadata notation like `<plugin backend='LV2' assets='lv2/eg-amp.lv2' product='eg-amp.lv2' />` in `aap_metadata.xml` because it will make metadata non-queryable to normal Android app developers. Also, we shouldn't need Service code running to just let it send back metadata to host only for querying. It should be self-explanatory.)
 
@@ -166,22 +165,18 @@ We don't detect any impedance mismatch between TTL and metadata XML; LV2 backend
 
 ### Platform features and modules
 
-NOTE: the actual native library builds have moved to `android-native-audio-builders` repo.
-
-This aap-lv2 repo has some dependencies, which are either platform-level-specific, or external.
-
-External software projects:
+This aap-lv2 repo contains LV2 SDK components as submodules:
 
 - serd (private fork)
 - sord (private fork)
 - sratom
 - lilv (private fork)
 
-To avoid further dependencies like cairo, we skip some samples in mda-lv2 port (they are actually skipped at android-native-audio-builders repo).
+Those private fork contains changes for Android (add Android asset support in particular).
 
 ### cerbero fork
 
-The external dependencies are built using cerbero build system. Cerbero is a comprehensive build system that cares all standard Android ABIs and builds some complicated projects like glib (which has many dependencies) and cairo.
+For some plugins, the actual binaries and their dependencies are built using cerbero build system in `atsushieno/android-native-audio-builders` repository. Cerbero is a comprehensive build system that cares all standard Android ABIs and builds some complicated projects like glib (which has many dependencies) and cairo. Though Cerbero is designed only to build Cerbero and co. and not meant to be used like this project does, so we take it at our own risk.
 
 We would keep using cerbero as the primary build engine, until ndkports or vcpkg becomes really usable. Currently both of them are no-go yet (ndkports cannot build basic autotools-based projects that has any dependency, and vcpkg only cares about Windows in practice).
 
@@ -194,9 +189,9 @@ And note that access to assets is not as simple as that to filesystem. It is imp
 Another thing to note is that we check in `serd_config.h`, `sord_config.h`, `sratom_config.h` and `lilv_config.h` directly in the source tree, which are generated from x86 build of android-native-audio-builders. If they have to be rebuilt (for e.g. updated submodules), rebuild and copy the generated headers again.
 
 
-## Performance measuring
+## Performance testing
 
-`android-audio-plugin-lv2-bridge.cpp` has a simple performance measurement aid which can be enabled with JUCEAAP_LOG_PERF variable.
+`android-audio-plugin-lv2-bridge.cpp` has a simple performance measurement aid which can be enabled with `AAP_LV2_LOG_PERF` variable.
 
 
 ## Licensing notice
