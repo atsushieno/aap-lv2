@@ -10,8 +10,9 @@
 #include <map>
 #include <string>
 
-#include "aap/logging.h"
-#include "aap/android-audio-plugin.h"
+#include <aap/unstable/logging.h>
+#include <aap/android-audio-plugin.h>
+#include <aap/unstable/aap-midi2.h>
 
 #include "symap.h"
 #include "zix/sem.h"
@@ -29,7 +30,6 @@
 #include <lv2/buf-size/buf-size.h>
 #include <lv2/options/options.h>
 #include <lv2/state/state.h>
-#include <aap/aap-midi2.h>
 
 #include "cmidi2.h"
 #include "lv2-midi2.h"

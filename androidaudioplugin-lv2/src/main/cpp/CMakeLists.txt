@@ -7,36 +7,21 @@ cmake_minimum_required(VERSION 3.6)
 project(androidaudioplugin-lv2 VERSION 0.1 LANGUAGES C CXX)
 
 set(DEPBASE ../../../../external)
+get_filename_component (AAPDIR "${DEPBASE}/android-audio-plugin-framework" ABSOLUTE)
 
 if (ANDROID)
-
 if (NOT (BUILD_WITH_PREFAB))
-get_filename_component (AAPDIR "${DEPBASE}/android-audio-plugin-framework" ABSOLUTE)
-set (androidaudioplugin-lv2_INCLUDES
-		"${AAPDIR}/native/plugin-api/include"
-		"${AAPDIR}/native/androidaudioplugin/core/include")
 link_directories (
 		# FIXME: do not reference `debug` directory.
 		"${AAPDIR}/androidaudioplugin/build/intermediates/merged_native_libs/debug/out/lib/${CMAKE_ANDROID_ARCH_ABI}"
 )
 endif ()
-
-else (ANDROID)
-
-get_filename_component (AAPDIR "${CMAKE_CURRENT_LIST_DIR}/../../../${DEPBASE}/android-audio-plugin-framework" ABSOLUTE)
-
-set (androidaudioplugin-lv2_INCLUDES
-		"${AAPDIR}/native/plugin-api/include"
-		"${AAPDIR}/native/androidaudioplugin/core/include")
-
 endif (ANDROID)
-
-# resolve dependencies via pkg-config
 
 # set INCLUDE_DIRS and LIBRARY_DIRS
 
 set (androidaudioplugin-lv2_INCLUDES
-		${androidaudioplugin-lv2_INCLUDES}
+		${AAPDIR}/include
 		"src"
 		${DEPBASE}/serd/include
 		${DEPBASE}/sord
@@ -44,10 +29,6 @@ set (androidaudioplugin-lv2_INCLUDES
 		${DEPBASE}/sratom/include
 		${DEPBASE}/lilv
 		)
-
-# target_link_directories is not usable until cmake 3.14...
-link_directories (
-)
 
 # set SOURCES. Android build has some additional ones.
 
