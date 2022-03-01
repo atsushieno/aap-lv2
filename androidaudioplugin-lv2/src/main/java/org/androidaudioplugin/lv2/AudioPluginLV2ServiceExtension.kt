@@ -1,12 +1,11 @@
 package org.androidaudioplugin.lv2
 
-import android.app.Service
 import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
 import android.content.res.AssetManager
-import org.androidaudioplugin.AudioPluginLocalHost
 import org.androidaudioplugin.AudioPluginService
+import org.androidaudioplugin.hosting.AudioPluginHostHelper
 import java.io.File
 
 // This class is (can be) used as an AudioPluginHost extension.
@@ -28,7 +27,7 @@ class AudioPluginLV2ServiceExtension : AudioPluginService.Extension
         val isFile = svcInfo.metaData?.getBoolean(LV2_RESOURCE_FROM_FILE, false)
         val dataAbsDir = context.applicationContext.filesDir.canonicalPath
         if (isFile == true) {
-            var lv2Paths = AudioPluginLocalHost.getLocalAudioPluginService(context).plugins
+            var lv2Paths = AudioPluginHostHelper.getLocalAudioPluginService(context).plugins
                 .filter { p -> p.backend == "LV2" }
                 .map { p -> if (p.assets != null) File(p.assets!!).parent.toString() else "" }
                 .distinct().toTypedArray()
@@ -36,7 +35,7 @@ class AudioPluginLV2ServiceExtension : AudioPluginService.Extension
                     s -> if (s.startsWith('/')) "$dataAbsDir$s" else "$dataAbsDir/$s" }
             initialize(lv2pathStr, null)
         } else {
-            var lv2Paths = AudioPluginLocalHost.getLocalAudioPluginService(context).plugins
+            var lv2Paths = AudioPluginHostHelper.getLocalAudioPluginService(context).plugins
                 .filter { p -> p.backend == "LV2" }
                 .map { p -> if (p.assets != null) p.assets!! else "" }
                 .distinct().toTypedArray()
