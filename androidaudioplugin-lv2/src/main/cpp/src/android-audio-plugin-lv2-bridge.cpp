@@ -792,7 +792,7 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
         AndroidAudioPluginFactory *pluginFactory,
         const char *pluginUniqueID,
         int sampleRate,
-        AndroidAudioPluginExtension **extensions) {
+        AndroidAudioPluginHost *host) {
     aap::a_log_f(AAP_LOG_LEVEL_INFO, "aap-lv2", "Instantiating aap-lv2 plugin %s", pluginUniqueID);
 
     auto world = lilv_world_new();
@@ -839,8 +839,8 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
 
     auto ctx = new AAPLV2PluginContext(statics, world, plugin, pluginUniqueID, sampleRate);
 
-    for (int i = 0; extensions[i] != nullptr; i++) {
-        auto &ext = extensions[i];
+    for (int i = 0; host->extensions[i] != nullptr; i++) {
+        auto &ext = host->extensions[i];
         if (strcmp(ext->uri, AAP_MIDI_CI_EXTENSION_URI) == 0)
             // Right now, we switch to possible MIDI 2.0 protocol whenever client (host)
             // specifies so, regardless of whether the plugin supports it or not.
@@ -985,7 +985,8 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
 } // namespace aaplv2bridge
 
 AndroidAudioPluginFactory aap_lv2_factory{aaplv2bridge::aap_lv2_plugin_new,
-                                          aaplv2bridge::aap_lv2_plugin_delete};
+                                          aaplv2bridge::aap_lv2_plugin_delete,
+                                          nullptr};
 
 extern "C" {
 
