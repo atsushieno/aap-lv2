@@ -839,16 +839,14 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
 
     auto ctx = new AAPLV2PluginContext(statics, world, plugin, pluginUniqueID, sampleRate);
 
-    for (int i = 0; host->extensions[i] != nullptr; i++) {
-        auto &ext = host->extensions[i];
-        if (strcmp(ext->uri, AAP_MIDI_CI_EXTENSION_URI) == 0)
+    auto midi2ext = (aap_midi2_extension_t*) host->get_extension_data(host, AAP_MIDI2_EXTENSION_URI);
+    if (midi2ext != nullptr && midi2ext->protocol == AAP_PROTOCOL_MIDI2_0)
             // Right now, we switch to possible MIDI 2.0 protocol whenever client (host)
             // specifies so, regardless of whether the plugin supports it or not.
             // At this state we convert the incoming UMPs to MIDI 1.0 messages anyways,
             // and in the future the conversion will be applied optionally if the plugin
             // does not support MIDI 2.0.
             ctx->ipc_midi2_enabled = true;
-    }
 
     ctx->features.urid_map_feature_data.handle = ctx;
     ctx->features.urid_map_feature_data.map = map_uri;
