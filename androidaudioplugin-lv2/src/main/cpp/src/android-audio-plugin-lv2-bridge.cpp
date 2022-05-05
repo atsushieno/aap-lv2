@@ -140,6 +140,9 @@ public:
     }
 
     ~AAPLV2PluginContext() {
+        for (auto &p : presets)
+            if (p->data)
+                free(p->data);
         for (auto p : midi_atom_buffers)
             free(p.second);
         free(midi_atom_forge);
@@ -162,6 +165,7 @@ public:
     LV2_URID ump_established_protocol{0}; // between this LV2 bridge and the actual LV2 plugin
     bool ipc_midi2_enabled{false}; // between host app and service (this bridge)
     aap_midi2_extension_t aap_midi2;
+    int32_t selected_preset_index{-1};
     std::vector<std::unique_ptr<aap_preset_t>> presets{};
 
     std::unique_ptr<LV2_Feature*> stateFeaturesList()
@@ -1063,28 +1067,60 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
 // Presets extension
 
 int32_t aap_lv2_on_preset_loaded(Jalv* jalv, const LilvNode* node, const LilvNode* title, void* data) {
+    auto name = lilv_node_as_string(title);
+
     auto presets_context = (aap_presets_context_t*) data;
     auto ctx = (AAPLV2PluginContext*) presets_context->context;
-    // FIXME: implement (load and store them)
+    auto uridMap = &ctx->features.urid_map_feature_data;
+    auto uridUnmap = &ctx->features.urid_unmap_feature_data;
+    auto state = lilv_state_new_from_world(jalv->world, uridMap, node);
+    auto stateData = lilv_state_to_string(ctx->world, uridMap, uridUnmap, state, name, nullptr);
+
+    aap_preset_t preset;
+    preset.index = (int32_t) ctx->presets.size();
+    strncpy(preset.name, name, AAP_PRESETS_EXTENSION_MAX_NAME_LENGTH);
+    preset.data_size = (int32_t) strlen(const_cast<const char*>(stateData));
+    preset.data = strdup(stateData);
+    ctx->presets.emplace_back(std::make_unique<aap_preset_t>(preset));
+    aap::a_log_f(AAP_LOG_LEVEL_DEBUG, "AAP-LV2", "aap_lv2_on_preset_loaded. %s: %s", name, lilv_node_as_string(node));
+    free((void *) name);
+    free(stateData);
+    lilv_state_free(state);
     return 0;
 }
 
-int32_t aap_lv2_get_preset_count(aap_presets_context_t* context) {
+void aap_lv2_ensure_preset_loaded(aap_presets_context_t* context) {
     auto ctx = ((AAPLV2PluginContext *) context->context);
-    jalv_load_presets(ctx, aap_lv2_on_preset_loaded, context);
+    if (ctx->presets.size() == 0)
+        jalv_load_presets(ctx, aap_lv2_on_preset_loaded, context);
+}
+
+int32_t aap_lv2_get_preset_count(aap_presets_context_t* context) {
+    aap_lv2_ensure_preset_loaded(context);
+    auto ctx = ((AAPLV2PluginContext *) context->context);
     return ctx->presets.size();
 }
 int32_t aap_lv2_get_preset_data_size(aap_presets_context_t* context, int32_t index) {
+    aap_lv2_ensure_preset_loaded(context);
     auto ctx = ((AAPLV2PluginContext *) context->context);
+    return ctx->presets[index]->data_size;
 }
 void aap_lv2_get_preset(aap_presets_context_t* context, int32_t index, bool skipBinary, aap_preset_t* destination) {
+    aap_lv2_ensure_preset_loaded(context);
     auto ctx = ((AAPLV2PluginContext *) context->context);
+    auto preset = ctx->presets[index].get();
+    destination->data_size = preset->data_size;
+    memcpy(destination->data, preset->data, preset->data_size);
 }
 int32_t aap_lv2_get_preset_index(aap_presets_context_t* context) {
+    aap_lv2_ensure_preset_loaded(context);
     auto ctx = ((AAPLV2PluginContext *) context->context);
+    return ctx->selected_preset_index;
 }
 void aap_lv2_set_preset_index(aap_presets_context_t* context, int32_t index) {
+    aap_lv2_ensure_preset_loaded(context);
     auto ctx = ((AAPLV2PluginContext *) context->context);
+    ctx->selected_preset_index = index;
 }
 
 
