@@ -1110,7 +1110,8 @@ void aap_lv2_get_preset(aap_presets_context_t* context, int32_t index, bool skip
     auto ctx = ((AAPLV2PluginContext *) context->context);
     auto preset = ctx->presets[index].get();
     destination->data_size = preset->data_size;
-    memcpy(destination->data, preset->data, preset->data_size);
+    if (!skipBinary)
+        memcpy(destination->data, preset->data, preset->data_size);
 }
 int32_t aap_lv2_get_preset_index(aap_presets_context_t* context) {
     aap_lv2_ensure_preset_loaded(context);
