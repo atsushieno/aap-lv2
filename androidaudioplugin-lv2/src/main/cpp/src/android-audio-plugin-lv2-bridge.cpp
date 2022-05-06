@@ -1110,6 +1110,7 @@ void aap_lv2_get_preset(aap_presets_context_t* context, int32_t index, bool skip
     auto ctx = ((AAPLV2PluginContext *) context->context);
     auto preset = ctx->presets[index].get();
     destination->data_size = preset->data_size;
+    strncpy(destination->name, preset->name, AAP_PRESETS_EXTENSION_MAX_NAME_LENGTH);
     if (!skipBinary)
         memcpy(destination->data, preset->data, preset->data_size);
 }
