@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <dirent.h>
 #include <fcntl.h>
+#include <string.h>
 
 #include "std_workaround.h"
 #include "abstract_io.h"
@@ -76,6 +77,7 @@ int abstract_fwrite(const void *ptr, size_t size, size_t count, void* stream)
 	if (!current_asset_manager)
 		return std_fwrite(ptr, size, count, stream);
 	puts (NULL); /* damn "undefined reference to assert()" - just cause SIGSEGV then. */
+	return 0;
 }
 
 int abstract_error_vfprintf (const char *format, va_list arg)

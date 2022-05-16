@@ -7,7 +7,8 @@ cmake_minimum_required(VERSION 3.6)
 project(androidaudioplugin-lv2 VERSION 0.1 LANGUAGES C CXX)
 
 set(DEPBASE ../../../../external)
-get_filename_component (AAPDIR "${DEPBASE}/android-audio-plugin-framework" ABSOLUTE)
+#get_filename_component (AAPDIR "${DEPBASE}/android-audio-plugin-framework" ABSOLUTE)
+set(AAPDIR ${DEPBASE}/android-audio-plugin-framework)
 
 if (ANDROID)
 if (NOT (BUILD_WITH_PREFAB))
@@ -24,10 +25,10 @@ set (androidaudioplugin-lv2_INCLUDES
 		${AAPDIR}/include
 		"src"
 		${DEPBASE}/serd/include
-		${DEPBASE}/sord
+		${DEPBASE}/sord/include
 		${DEPBASE}/lv2
 		${DEPBASE}/sratom/include
-		${DEPBASE}/lilv
+		${DEPBASE}/lilv/include
 		)
 
 # set SOURCES. Android build has some additional ones.
@@ -80,12 +81,12 @@ set (androidaudioplugin-lv2_SOURCES
 		"${DEPBASE}/serd/src/node.c"
 		"${DEPBASE}/serd/src/string.c"
 		# "${DEPBASE}/sord/src/sordi.c"
-		"${DEPBASE}/sord/src/sord_test.c"
+		# "${DEPBASE}/sord/src/sord_test.c"
 		"${DEPBASE}/sord/src/syntax.c"
 		# "${DEPBASE}/sord/src/sord_validate.c"
-		"${DEPBASE}/sord/src/zix/hash.c"
-		"${DEPBASE}/sord/src/zix/digest.c"
-		"${DEPBASE}/sord/src/zix/btree.c"
+		# "${DEPBASE}/sord/src/zix/hash.c"
+		# "${DEPBASE}/sord/src/zix/digest.c"
+		# "${DEPBASE}/sord/src/zix/btree.c"
 		"${DEPBASE}/sord/src/sord.c"
 		"${DEPBASE}/sratom/src/sratom.c"
 		)
@@ -123,6 +124,8 @@ target_compile_options (androidaudioplugin-lv2
         -Wall
         -Wshadow
 		-DHAVE_MLOCK=1
+		-DZIX_STATIC
+		-DZIX_INTERNAL
         # uncomment this if you want to enable AddressSanitizer
         #-fsanitize=address -fno-omit-frame-pointer
         )

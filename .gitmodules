@@ -12,7 +12,7 @@
 	url = https://github.com/atsushieno/sord.git
 [submodule "external/sratom"]
 	path = external/sratom
-	url = https://github.com/atsushieno/sratom.git
+	url = https://github.com/drobilla/sratom.git
 [submodule "external/lilv"]
 	path = external/lilv
 	url = https://github.com/atsushieno/lilv.git
