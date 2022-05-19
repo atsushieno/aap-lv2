@@ -10,11 +10,10 @@ if (ANDROID)
 
 else (ANDROID)
 
-get_filename_component (AAPDIR "${CMAKE_CURRENT_LIST_DIR}/../../../../../external/android-audio-plugin-framework" ABSOLUTE)
+get_filename_component (AAPDIR "${CMAKE_CURRENT_LIST_DIR}/../../../../external/android-audio-plugin-framework" ABSOLUTE)
 
 set (androidaudioplugin-lv2_INCLUDES
-        "${AAPDIR}/native/plugin-api/include"
-        "${AAPDIR}/native/androidaudioplugin/core/include")
+        "${AAPDIR}/include")
 
 endif (ANDROID)
 
