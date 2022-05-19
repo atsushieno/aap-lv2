@@ -32,11 +32,13 @@
 #include <lv2/options/options.h>
 #include <lv2/state/state.h>
 #include <lv2/presets/presets.h>
+#include <lv2/resize-port/resize-port.h>
 
 #include "cmidi2.h"
 #include "lv2-midi2.h"
 
 #define JUCEAAP_LOG_PERF 0
+#define AAP_TO_ATOM_CONVERSION_BUFFER_SIZE 0x80000 // 524288
 
 namespace aaplv2bridge {
 
@@ -55,7 +57,7 @@ int log_printf(LV2_Log_Handle handle, LV2_URID type, const char *fmt, ...) {
 typedef struct {
     LilvNode *audio_port_uri_node, *control_port_uri_node, *atom_port_uri_node,
              *input_port_uri_node, *output_port_uri_node, *work_interface_uri_node,
-             *atom_supports_uri_node, *presets_preset_node,
+             *atom_supports_uri_node, *resize_port_minimum_size_node, *presets_preset_node,
              *rdfs_label_node,
              *midi2_established_protocol_uri_node, *midi2_ump_uri_node;
 } AAPLV2PluginContextStatics;
@@ -86,6 +88,8 @@ public:
     LV2_Log_Log logData{nullptr, log_printf, log_vprintf};
 
     const int minBlockLengthValue = 128;
+    // FIXME: this should not be a magic number, but lowering the value causes aap-sfizz crash.
+    //  Needs some investigation.
     const int maxBlockLengthValue = 8192;
     LV2_Options_Option minBlockLengthOption;
     LV2_Options_Option maxBlockLengthOption;
@@ -131,8 +135,7 @@ class AAPLV2PluginContext {
 public:
     AAPLV2PluginContext(AAPLV2PluginContextStatics *statics, LilvWorld *world,
                         const LilvPlugin *plugin, const char* pluginUniqueId, int32_t sampleRate)
-            : statics(statics), world(world), plugin(plugin), plugin_id(pluginUniqueId), sample_rate(sampleRate) {
-        midi_atom_forge = (LV2_Atom_Forge *) calloc(1024, 1);
+            : statics(statics), world(world), plugin(plugin), aap_plugin_id(pluginUniqueId), sample_rate(sampleRate) {
         symap = symap_new();
         // They don't have default assignment...
         worker.threaded = false;
@@ -143,9 +146,8 @@ public:
         for (auto &p : presets)
             if (p->data)
                 free(p->data);
-        for (auto p : midi_atom_buffers)
+        for (auto p : midi_atom_inputs)
             free(p.second);
-        free(midi_atom_forge);
         symap_free(symap);
     }
 
@@ -155,13 +157,20 @@ public:
     LilvWorld *world;
     const LilvPlugin *plugin;
     LilvInstance *instance{nullptr};
-    const char *plugin_id{nullptr};
+    std::string aap_plugin_id{};
     int32_t sample_rate;
     AndroidAudioPluginBuffer *cached_buffer{nullptr};
     void *dummy_raw_buffer{nullptr};
+    // We store ResizePort::minimumSize here, to specify sufficient Atom buffer size
+    // (not to allocate local memory; it is passed as a shared memory by the local service host).
+    std::map<int32_t, size_t> explicit_port_buffer_sizes{};
     int32_t midi_buffer_size = 1024;
-    std::map<int32_t, LV2_Atom_Sequence *> midi_atom_buffers{};
-    LV2_Atom_Forge *midi_atom_forge;
+    // They will all receive transformed AAP MIDI inputs into Atom.
+    std::map<int32_t, LV2_Atom_Sequence *> midi_atom_inputs{};
+    // Their Atom_Sequence strcts have to be re-assigned appropriate Atom sequence size every time
+    //  (FIXME: is it appropriate? sfizz clearly expects this, but I cannot find appropriate LV2 spec description.)
+    std::map<int32_t, LV2_Atom_Sequence *> atom_outputs{};
+    LV2_Atom_Forge midi_in_atom_forge{};
     LV2_URID ump_established_protocol{0}; // between this LV2 bridge and the actual LV2 plugin
     bool ipc_midi2_enabled{false}; // between host app and service (this bridge)
     aap_midi2_extension_t aap_midi2;
@@ -435,6 +444,7 @@ void aap_lv2_plugin_delete(
     lilv_node_free(l->statics->input_port_uri_node);
     lilv_node_free(l->statics->output_port_uri_node);
     lilv_node_free(l->statics->work_interface_uri_node);
+    lilv_node_free(l->statics->resize_port_minimum_size_node);
     lilv_node_free(l->statics->presets_preset_node);
     lilv_node_free(l->statics->rdfs_label_node);
     lilv_node_free(l->statics->midi2_established_protocol_uri_node);
@@ -456,24 +466,52 @@ void resetPorts(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *buffer, bo
 
     assert(buffer != nullptr);
 
-    if (allocationPermitted) {
+    if (allocationPermitted) { // it can go into time-consuming allocation and port node lookup.
+        int nPorts = lilv_plugin_get_num_ports(lilvPlugin);
+        bool hasUMPPort = false;
+        for (int i = 0; i < nPorts; i++) {
+            const LilvPort* portNode = lilv_plugin_get_port_by_index(lilvPlugin, i);
+            if (IS_ATOM_PORT(ctx, lilvPlugin, portNode)) {
+                if (IS_INPUT_PORT(ctx, lilvPlugin, portNode)) {
+                    LilvNodes *supports = lilv_port_get_value(lilvPlugin, portNode,
+                                                              ctx->statics->atom_supports_uri_node);
+                    if (!lilv_nodes_contains(supports, ctx->statics->midi2_ump_uri_node))
+                        hasUMPPort = true;
+                    ctx->midi_atom_inputs[i] = (LV2_Atom_Sequence *) calloc(ctx->midi_buffer_size, 1);
+                } else {
+                    ctx->atom_outputs[i] = (LV2_Atom_Sequence *) buffer->buffers[i];
+                }
+
+                const LilvPort *lilvPort = lilv_plugin_get_port_by_index(lilvPlugin, i);
+                LilvNode* minimumSizeNode = lilv_port_get(lilvPlugin, lilvPort, ctx->statics->resize_port_minimum_size_node);
+                if (minimumSizeNode) {
+                    auto minSize = (size_t) lilv_node_as_int(minimumSizeNode);
+                    if (minSize > buffer->num_frames * sizeof(float))
+                        ctx->explicit_port_buffer_sizes[i] = minSize;
+                }
+            }
+        }
+
+        if (hasUMPPort && lilv_plugin_has_extension_data(ctx->plugin, ctx->statics->midi2_established_protocol_uri_node)) {
+            ctx->ump_established_protocol = (LV2_URID) (int64_t) lilv_instance_get_extension_data(ctx->instance, LV2_MIDI2__establishedProtocol);
+        }
+
         if (!ctx->dummy_raw_buffer)
             ctx->dummy_raw_buffer = calloc(buffer->num_frames * sizeof(float), 1);
 
         //  >>> The buffer size could be specified using Buf Size extension, for Atom-specific ports.
         if (ctx->midi_buffer_size < buffer->num_frames) {
-            for (auto p : ctx->midi_atom_buffers) {
+            for (auto p : ctx->midi_atom_inputs) {
                 free(p.second);
-                ctx->midi_atom_buffers[p.first] = (LV2_Atom_Sequence *) calloc(buffer->num_frames,
-                                                                               1);
+                ctx->midi_atom_inputs[p.first] = (LV2_Atom_Sequence *) calloc(AAP_TO_ATOM_CONVERSION_BUFFER_SIZE, 1);
             }
         }
     }
 
     int numPorts = lilv_plugin_get_num_ports(lilvPlugin);
     for (int p = 0; p < numPorts; p++) {
-        auto iter = ctx->midi_atom_buffers.find(p);
-        auto bp = iter != ctx->midi_atom_buffers.end() ? iter->second : buffer->buffers[p];
+        auto iter = ctx->midi_atom_inputs.find(p);
+        auto bp = iter != ctx->midi_atom_inputs.end() ? iter->second : buffer->buffers[p];
         if (bp == nullptr)
             lilv_instance_connect_port(instance, p, ctx->dummy_raw_buffer);
         else
@@ -482,9 +520,11 @@ void resetPorts(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *buffer, bo
 }
 
 void aap_lv2_plugin_prepare(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *buffer) {
-    auto l = (AAPLV2PluginContext *) plugin->plugin_specific;
+    auto ctx = (AAPLV2PluginContext *) plugin->plugin_specific;
+
     resetPorts(plugin, buffer, true);
-    aap::a_log_f(AAP_LOG_LEVEL_INFO, "aap-lv2", "LV2 plugin %s is ready, prepared.", l->plugin_id);
+
+    aap::a_log_f(AAP_LOG_LEVEL_INFO, "aap-lv2", "LV2 plugin %s is ready, prepared.", ctx->aap_plugin_id.c_str());
 }
 
 void aap_lv2_plugin_activate(AndroidAudioPlugin *plugin) {
@@ -735,18 +775,25 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
     if (ctx->worker.iface && ctx->worker.iface->end_run)
         ctx->worker.iface->end_run(ctx->instance->lv2_handle);
 
+    for (auto p : ctx->atom_outputs) {
+        // Clean up Atom output sequence ports.
+        // non-MIDI Atom ports are unsupported, but regardless it "seems" we have to keep it clean and assign appropriate sizes.
+        lv2_atom_sequence_clear(p.second);
+        auto bufferSize = ctx->explicit_port_buffer_sizes.find(p.first) == ctx->explicit_port_buffer_sizes.end() ? buffer->num_frames * sizeof(float) : ctx->explicit_port_buffer_sizes[p.first];
+        p.second->atom.size = bufferSize - sizeof(LV2_Atom);
+    }
+
     // convert AAP MIDI/MIDI2 messages into Atom Sequence of MidiEvent.
-    for (auto p : ctx->midi_atom_buffers) {
-        if (IS_OUTPUT_PORT(ctx, ctx->plugin, lilv_plugin_get_port_by_index(ctx->plugin, p.first))) {
-            // For output ports. it must indicate the size of atom buffer.
-            p.second->atom.size = buffer->num_frames * sizeof(float) - sizeof(LV2_Atom);
-            continue;
-        }
+    for (auto p : ctx->midi_atom_inputs) {
         void *src = buffer->buffers[p.first];
         auto uridMap = &ctx->features.urid_map_feature_data;
-        auto forge = ctx->midi_atom_forge;
+        auto forge = &ctx->midi_in_atom_forge;
         lv2_atom_forge_init(forge, uridMap);
-        lv2_atom_forge_set_buffer(forge, (uint8_t *) p.second, buffer->num_frames * sizeof(float));
+        // Port size may be specified by ResizePort::minimumSize (minimum is not necessarily the size, but one thing that needs to check).
+        size_t bufSize = ctx->explicit_port_buffer_sizes.find(p.first) == ctx->explicit_port_buffer_sizes.end() ?
+                         buffer->num_frames * sizeof(float) :
+                         ctx->explicit_port_buffer_sizes[p.first];
+        lv2_atom_forge_set_buffer(forge, (uint8_t *) p.second, bufSize);
         LV2_Atom_Forge_Frame frame;
         lv2_atom_sequence_clear(p.second);
 
@@ -886,6 +933,7 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
     statics->work_interface_uri_node = lilv_new_uri(world, LV2_WORKER__interface);
     statics->midi2_established_protocol_uri_node = lilv_new_uri(world, LV2_MIDI2__establishedProtocol);
     statics->atom_supports_uri_node = lilv_new_uri(world, LV2_ATOM__supports);
+    statics->resize_port_minimum_size_node = lilv_new_uri(world, LV2_RESIZE_PORT__minimumSize);
     statics->presets_preset_node = lilv_new_uri(world, LV2_PRESETS__Preset);
     statics->rdfs_label_node = lilv_new_uri(world, LILV_NS_RDFS "label");
     statics->midi2_ump_uri_node = lilv_new_uri(world, LV2_MIDI2__UMP);
@@ -1016,18 +1064,6 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
         ctx->urids.urid_midi2_midi2_protocol = map->map(map->handle, LV2_MIDI2__midi2Protocol);
     }
 
-    int nPorts = lilv_plugin_get_num_ports(plugin);
-    bool hasUMPPort = false;
-    for (int i = 0; i < nPorts; i++) {
-        const LilvPort* portNode = lilv_plugin_get_port_by_index(plugin, i);
-        if (IS_ATOM_PORT(ctx, plugin, portNode)) {
-            LilvNodes* supports = lilv_port_get_value(plugin, portNode, ctx->statics->atom_supports_uri_node);
-            if (!lilv_nodes_contains(supports, ctx->statics->midi2_ump_uri_node))
-                hasUMPPort = true;
-            ctx->midi_atom_buffers[i] = (LV2_Atom_Sequence *) calloc(ctx->midi_buffer_size, 1);
-        }
-    }
-
     /* Check for thread-safe state restore() method. */
     LilvNode* state_threadSafeRestore = lilv_new_uri(
             ctx->world, LV2_STATE__threadSafeRestore);
@@ -1044,10 +1080,6 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
         if (ctx->safe_restore) {
             jalv_worker_init(ctx, &ctx->state_worker, iface, false);
         }
-    }
-
-    if (hasUMPPort && lilv_plugin_has_extension_data(ctx->plugin, ctx->statics->midi2_established_protocol_uri_node)) {
-        ctx->ump_established_protocol = (LV2_URID) (int64_t) lilv_instance_get_extension_data(ctx->instance, LV2_MIDI2__establishedProtocol);
     }
 
     auto ret = new AndroidAudioPlugin{
