@@ -9,7 +9,8 @@ android {
 
     defaultConfig {
         applicationId "org.androidaudioplugin.aap_ayumi"
-        minSdkVersion 29
+        // FIXME: it is temporarily set to 30.
+        minSdkVersion 30
         targetSdkVersion 32
         versionCode 1
         versionName "$aap_lv2_version"
