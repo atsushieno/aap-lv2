@@ -35,15 +35,16 @@ android {
         }
     }
 
+    // https://github.com/google/prefab/issues/127
+    packagingOptions {
+        exclude '**/libc++_shared.so'
+    }
+
     // FIXME: enable these sections once we migrated to prefab.
     /*
     buildFeatures {
         prefab true
         prefabPublishing true
-    }
-    // Workaround for https://issuetracker.google.com/issues/168777344#comment5
-    packagingOptions {
-        exclude '**.so'
     }
     prefab {
         androidaudioplugin-lv2 {
@@ -51,9 +52,6 @@ android {
         }
     }
     */
-    packagingOptions {
-        exclude '**libc++_shared.so'
-    }
 
     externalNativeBuild {
         cmake {
