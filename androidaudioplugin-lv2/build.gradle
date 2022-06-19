@@ -16,7 +16,7 @@ android {
         externalNativeBuild {
             cmake {
                 // https://github.com/google/prefab/blob/bccf5a6a75b67add30afbb6d4f7a7c50081d2d86/api/src/main/kotlin/com/google/prefab/api/Android.kt#L243
-                arguments "-DANDROID=1", "-DANDROID_STL=c++_shared", "-DAAP_ENABLE_ASAN=" + (enable_asan ? "1" : "0")
+                arguments "-DANDROID=1", "-DANDROID_STL=c++_shared", "-DBUILD_WITH_PREFAB=1", "-DAAP_ENABLE_ASAN=" + (enable_asan ? "1" : "0")
             }
         }
     }
@@ -38,6 +38,7 @@ android {
     // https://github.com/google/prefab/issues/127
     packagingOptions {
         exclude '**/libc++_shared.so'
+        exclude '**/libandroidaudioplugin.so'
     }
 
     buildFeatures {
