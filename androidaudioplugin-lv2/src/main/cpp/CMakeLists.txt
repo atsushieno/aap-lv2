@@ -2,7 +2,7 @@
 # This ensures that a certain set of CMake features is available to
 # your build.
 
-cmake_minimum_required(VERSION 3.6)
+cmake_minimum_required(VERSION 3.18)
 
 project(androidaudioplugin-lv2 VERSION 0.1 LANGUAGES C CXX)
 
@@ -126,8 +126,6 @@ target_compile_options (androidaudioplugin-lv2
 		-DHAVE_MLOCK=1
 		-DZIX_STATIC
 		-DZIX_INTERNAL
-        # uncomment this if you want to enable AddressSanitizer
-        #-fsanitize=address -fno-omit-frame-pointer
         )
 
 target_link_libraries (androidaudioplugin-lv2 ${androidaudioplugin-lv2_LIBS})

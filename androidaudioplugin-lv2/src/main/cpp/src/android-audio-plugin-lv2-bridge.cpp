@@ -41,6 +41,14 @@
 #define AAP_LV2_LOG_PERF 0
 #define AAP_TO_ATOM_CONVERSION_BUFFER_SIZE 0x80000 // 524288
 
+enum AAPLV2InstanceState {
+    AAP_LV2_INSTANCE_STATE_INITIAL = 1,
+    AAP_LV2_INSTANCE_STATE_PREPARED,
+    AAP_LV2_INSTANCE_STATE_ACTIVE,
+    AAP_LV2_INSTANCE_STATE_TERMINATING,
+    AAP_LV2_INSTANCE_STATE_ERROR
+};
+
 namespace aaplv2bridge {
 
 int log_vprintf(LV2_Log_Handle, LV2_URID type, const char *fmt, va_list ap) {
@@ -159,6 +167,7 @@ public:
         symap_free(symap);
     }
 
+    int32_t instance_state{AAP_LV2_INSTANCE_STATE_INITIAL};
     AAPLV2PluginContextStatics *statics;
     AAPLv2PluginFeatures features;
     AAPLV2URIDs urids;
@@ -439,6 +448,7 @@ void aap_lv2_plugin_delete(
     auto l = (AAPLV2PluginContext *) plugin->plugin_specific;
 
     l->exit = true;
+    l->instance_state = AAP_LV2_INSTANCE_STATE_TERMINATING;
 
     // Terminate the worker
     jalv_worker_finish(&l->worker);
@@ -531,15 +541,40 @@ void resetPorts(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *buffer, bo
 
 void aap_lv2_plugin_prepare(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *buffer) {
     auto ctx = (AAPLV2PluginContext *) plugin->plugin_specific;
+    if (ctx->instance_state == AAP_LV2_INSTANCE_STATE_ERROR)
+        return;
+    if (ctx->instance_state != AAP_LV2_INSTANCE_STATE_INITIAL) {
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, "aap-lv2", "LV2 plugin %s not at unprepared state.", ctx->aap_plugin_id.c_str());
+        ctx->instance_state = AAP_LV2_INSTANCE_STATE_ERROR;
+        return;
+    }
 
     resetPorts(plugin, buffer, true);
+
+    ctx->instance_state = AAP_LV2_INSTANCE_STATE_PREPARED;
+
+    for (auto p : ctx->midi_atom_inputs) {
+        auto uridMap = &ctx->features.urid_map_feature_data;
+        auto forge = &ctx->midi_in_atom_forge;
+        lv2_atom_forge_init(forge, uridMap);
+    }
 
     aap::a_log_f(AAP_LOG_LEVEL_INFO, "aap-lv2", "LV2 plugin %s is ready, prepared.", ctx->aap_plugin_id.c_str());
 }
 
 void aap_lv2_plugin_activate(AndroidAudioPlugin *plugin) {
-    auto l = (AAPLV2PluginContext *) plugin->plugin_specific;
-    lilv_instance_activate(l->instance);
+    auto ctx = (AAPLV2PluginContext *) plugin->plugin_specific;
+    if (ctx->instance_state == AAP_LV2_INSTANCE_STATE_ERROR)
+        return;
+    if (ctx->instance_state == AAP_LV2_INSTANCE_STATE_TERMINATING)
+        return;
+    if (ctx->instance_state == AAP_LV2_INSTANCE_STATE_PREPARED) {
+        lilv_instance_activate(ctx->instance);
+        ctx->instance_state = AAP_LV2_INSTANCE_STATE_ACTIVE;
+    } else {
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, "aap-lv2", "LV2 plugin %s is not at prepared state.", ctx->aap_plugin_id.c_str());
+        ctx->instance_state = AAP_LV2_INSTANCE_STATE_ERROR;
+    }
 }
 
 void
@@ -767,13 +802,22 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
                             long timeoutInNanoseconds) {
     // FIXME: use timeoutInNanoseconds?
 
+    auto ctx = (AAPLV2PluginContext *) plugin->plugin_specific;
+    if (ctx->instance_state == AAP_LV2_INSTANCE_STATE_ERROR)
+        return;
+    if (ctx->instance_state == AAP_LV2_INSTANCE_STATE_TERMINATING)
+        return;
+    if (!ctx->instance_state == AAP_LV2_INSTANCE_STATE_ACTIVE) {
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, "aap-lv2", "LV2 plugin %s is not at prepared state.", ctx->aap_plugin_id.c_str());
+        ctx->instance_state = AAP_LV2_INSTANCE_STATE_ERROR;
+        return;
+    }
+
 #if AAP_LV2_LOG_PERF
     struct timespec timeSpecBegin, timeSpecEnd;
     clock_gettime(CLOCK_REALTIME, &timeSpecBegin);
     aap::a_log_f(AAP_LOG_LEVEL_DEBUG, "aap-lv2.perf", "timeout: %ld nsec.", timeoutInNanoseconds);
 #endif
-
-    auto ctx = (AAPLV2PluginContext *) plugin->plugin_specific;
 
     if (buffer != ctx->cached_buffer)
         resetPorts(plugin, buffer, false);
@@ -797,10 +841,8 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
     // convert AAP MIDI/MIDI2 messages into Atom Sequence of MidiEvent.
     for (auto p : ctx->midi_atom_inputs) {
         void *src = buffer->buffers[p.first];
-        auto uridMap = &ctx->features.urid_map_feature_data;
         auto forge = &ctx->midi_in_atom_forge;
-        lv2_atom_forge_init(forge, uridMap);
-        // Port size may be specified by ResizePort::minimumSize (minimum is not necessarily the size, but one thing that needs to check).
+        // Port buffer size may be specified by ResizePort::minimumSize (minimum is not necessarily the size, but one thing that needs to check).
         size_t bufSize = ctx->explicit_port_buffer_sizes.find(p.first) == ctx->explicit_port_buffer_sizes.end() ?
                          buffer->num_frames * sizeof(float) :
                          ctx->explicit_port_buffer_sizes[p.first];
@@ -856,8 +898,19 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
 }
 
 void aap_lv2_plugin_deactivate(AndroidAudioPlugin *plugin) {
-    auto l = (AAPLV2PluginContext *) plugin->plugin_specific;
-    lilv_instance_deactivate(l->instance);
+    auto ctx = (AAPLV2PluginContext *) plugin->plugin_specific;
+    if (ctx->instance_state == AAP_LV2_INSTANCE_STATE_ERROR)
+        return;
+    if (ctx->instance_state == AAP_LV2_INSTANCE_STATE_TERMINATING)
+        return;
+    if (ctx->instance_state == AAP_LV2_INSTANCE_STATE_ACTIVE) {
+        lilv_instance_deactivate(ctx->instance);
+        ctx->instance_state = AAP_LV2_INSTANCE_STATE_PREPARED;
+    } else {
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, "aap-lv2", "LV2 plugin %s is not at prepared state.",
+                     ctx->aap_plugin_id.c_str());
+        ctx->instance_state = AAP_LV2_INSTANCE_STATE_ERROR;
+    }
 }
 
 const void* aap_lv2_get_port_value(
