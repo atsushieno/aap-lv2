@@ -2,8 +2,8 @@
 
 buildscript {
     ext.kotlin_version = '1.6.10'
-    ext.aap_version = '0.7.2'
-    ext.aap_lv2_version = '0.2.2'
+    ext.aap_version = '0.7.3'
+    ext.aap_lv2_version = '0.2.3'
     ext.ndk_version = '24.0.8215888'
     ext.enable_asan = false
 
