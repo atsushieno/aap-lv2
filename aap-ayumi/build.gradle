@@ -39,12 +39,9 @@ android {
         }
     }
 
-    // FIXME: enable these sections once we migrated to prefab.
-    /*
     buildFeatures {
         prefab true
     }
-    */
 
     externalNativeBuild {
         cmake {
@@ -53,16 +50,7 @@ android {
         }
     }
 
-    // AGP, Android Lint, and/or appcompat package is stupid and results in their own error to block our builds.
-    // > androidx.appcompat.AppCompatIssueRegistry in /home/runner/.gradle/caches/transforms-2/files-2.1/2dfc7e2f9c4e61e976acb8f06b4a9014/appcompat-1.2.0/jars/lint.jar does not specify a vendor; see IssueRegistry#vendor
-    // This is a suggested workaround (by AGP or Gradle)
-    lintOptions {
-        abortOnError false
-    }
-
     packagingOptions {
-        // for debugging and ASan settings
-        //doNotStrip "*/*/*.so"
         if (enable_asan)
             jniLibs.useLegacyPackaging = true
     }
@@ -85,11 +73,5 @@ dependencies {
 // This is a forcible workarounds to build libandroidaudioplugin.so in prior to referencing it.
 gradle.projectsEvaluated {
     tasks['buildCMakeDebug'].dependsOn(rootProject.project("androidaudioplugin-lv2").mergeDebugNativeLibs)
-    // It is super awkward in AGP or Android Studio, but gradlew --tasks does not list
-    // `buildCMakeRelease` while `buildCMakeDebug` is there!
-    // Fortunately(?) we can rely on another awkwardness that we reference *debug* version of
-    //  -;androidaudioplugin in CMakeLists.txt for target_link_directories() so we can skip
-    //  release dependency here (technically we need debug build *always* happen before
-    //  release builds, but it always seems to happen.
-//    tasks['buildCMakeRelease'].dependsOn(rootProject.project("androidaudioplugin-lv2").mergeReleaseNativeLibs)
+    tasks['buildCMakeRelWithDebInfo'].dependsOn(rootProject.project("androidaudioplugin-lv2").mergeReleaseNativeLibs)
 }
