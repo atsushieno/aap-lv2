@@ -14,6 +14,7 @@
 #include <aap/android-audio-plugin.h>
 #include <aap/unstable/aap-midi2.h>
 #include <aap/unstable/presets.h>
+#include <aap/unstable/state.h>
 
 #include "symap.h"
 #include "zix/sem.h"
@@ -39,6 +40,14 @@
 
 #define AAP_LV2_LOG_PERF 0
 #define AAP_TO_ATOM_CONVERSION_BUFFER_SIZE 0x80000 // 524288
+
+enum AAPLV2InstanceState {
+    AAP_LV2_INSTANCE_STATE_INITIAL = 1,
+    AAP_LV2_INSTANCE_STATE_PREPARED,
+    AAP_LV2_INSTANCE_STATE_ACTIVE,
+    AAP_LV2_INSTANCE_STATE_TERMINATING,
+    AAP_LV2_INSTANCE_STATE_ERROR
+};
 
 namespace aaplv2bridge {
 
@@ -107,11 +116,15 @@ public:
     LV2_Feature midi2Midi2ProtocolFeature{LV2_MIDI2__midi2Protocol, nullptr};
 };
 
-int32_t aap_lv2_get_preset_count(aap_presets_context_t* context);
-int32_t aap_lv2_get_preset_data_size(aap_presets_context_t* context, int32_t index);
-void aap_lv2_get_preset(aap_presets_context_t* context, int32_t index, bool skipBinary, aap_preset_t* destination);
-int32_t aap_lv2_get_preset_index(aap_presets_context_t* context);
-void aap_lv2_set_preset_index(aap_presets_context_t* context, int32_t index);
+size_t aap_lv2_get_state_size(AndroidAudioPluginExtensionTarget target);
+void aap_lv2_get_state(AndroidAudioPluginExtensionTarget target, aap_state_t *input);
+void aap_lv2_set_state(AndroidAudioPluginExtensionTarget target, aap_state_t *input);
+
+int32_t aap_lv2_get_preset_count(AndroidAudioPluginExtensionTarget target);
+int32_t aap_lv2_get_preset_data_size(AndroidAudioPluginExtensionTarget target, int32_t index);
+void aap_lv2_get_preset(AndroidAudioPluginExtensionTarget target, int32_t index, bool skipBinary, aap_preset_t* destination);
+int32_t aap_lv2_get_preset_index(AndroidAudioPluginExtensionTarget target);
+void aap_lv2_set_preset_index(AndroidAudioPluginExtensionTarget target, int32_t index);
 
 struct AAPLV2URIDs {
     LV2_URID urid_atom_sequence_type{0},
@@ -124,8 +137,11 @@ struct AAPLV2URIDs {
         urid_midi2_midi2_protocol{0};
 };
 
-aap_presets_extension_t presets_ext{nullptr,
-                                aap_lv2_get_preset_count,
+aap_state_extension_t state_ext{aap_lv2_get_state_size,
+                                aap_lv2_get_state,
+                                aap_lv2_set_state};
+
+aap_presets_extension_t presets_ext{aap_lv2_get_preset_count,
                                 aap_lv2_get_preset_data_size,
                                 aap_lv2_get_preset,
                                 aap_lv2_get_preset_index,
@@ -151,6 +167,7 @@ public:
         symap_free(symap);
     }
 
+    int32_t instance_state{AAP_LV2_INSTANCE_STATE_INITIAL};
     AAPLV2PluginContextStatics *statics;
     AAPLv2PluginFeatures features;
     AAPLV2URIDs urids;
@@ -195,8 +212,10 @@ public:
     }
 
     void* getExtension(const char *uri) {
+        if (strcmp(uri, AAP_STATE_EXTENSION_URI) == 0) {
+            return &state_ext;
+        }
         if (strcmp(uri, AAP_PRESETS_EXTENSION_URI) == 0) {
-            presets_ext.context = this;
             return &presets_ext;
         }
         return nullptr;
@@ -429,6 +448,7 @@ void aap_lv2_plugin_delete(
     auto l = (AAPLV2PluginContext *) plugin->plugin_specific;
 
     l->exit = true;
+    l->instance_state = AAP_LV2_INSTANCE_STATE_TERMINATING;
 
     // Terminate the worker
     jalv_worker_finish(&l->worker);
@@ -521,15 +541,40 @@ void resetPorts(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *buffer, bo
 
 void aap_lv2_plugin_prepare(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *buffer) {
     auto ctx = (AAPLV2PluginContext *) plugin->plugin_specific;
+    if (ctx->instance_state == AAP_LV2_INSTANCE_STATE_ERROR)
+        return;
+    if (ctx->instance_state != AAP_LV2_INSTANCE_STATE_INITIAL) {
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, "aap-lv2", "LV2 plugin %s not at unprepared state.", ctx->aap_plugin_id.c_str());
+        ctx->instance_state = AAP_LV2_INSTANCE_STATE_ERROR;
+        return;
+    }
 
     resetPorts(plugin, buffer, true);
+
+    ctx->instance_state = AAP_LV2_INSTANCE_STATE_PREPARED;
+
+    for (auto p : ctx->midi_atom_inputs) {
+        auto uridMap = &ctx->features.urid_map_feature_data;
+        auto forge = &ctx->midi_in_atom_forge;
+        lv2_atom_forge_init(forge, uridMap);
+    }
 
     aap::a_log_f(AAP_LOG_LEVEL_INFO, "aap-lv2", "LV2 plugin %s is ready, prepared.", ctx->aap_plugin_id.c_str());
 }
 
 void aap_lv2_plugin_activate(AndroidAudioPlugin *plugin) {
-    auto l = (AAPLV2PluginContext *) plugin->plugin_specific;
-    lilv_instance_activate(l->instance);
+    auto ctx = (AAPLV2PluginContext *) plugin->plugin_specific;
+    if (ctx->instance_state == AAP_LV2_INSTANCE_STATE_ERROR)
+        return;
+    if (ctx->instance_state == AAP_LV2_INSTANCE_STATE_TERMINATING)
+        return;
+    if (ctx->instance_state == AAP_LV2_INSTANCE_STATE_PREPARED) {
+        lilv_instance_activate(ctx->instance);
+        ctx->instance_state = AAP_LV2_INSTANCE_STATE_ACTIVE;
+    } else {
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, "aap-lv2", "LV2 plugin %s is not at prepared state.", ctx->aap_plugin_id.c_str());
+        ctx->instance_state = AAP_LV2_INSTANCE_STATE_ERROR;
+    }
 }
 
 void
@@ -757,13 +802,22 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
                             long timeoutInNanoseconds) {
     // FIXME: use timeoutInNanoseconds?
 
+    auto ctx = (AAPLV2PluginContext *) plugin->plugin_specific;
+    if (ctx->instance_state == AAP_LV2_INSTANCE_STATE_ERROR)
+        return;
+    if (ctx->instance_state == AAP_LV2_INSTANCE_STATE_TERMINATING)
+        return;
+    if (!ctx->instance_state == AAP_LV2_INSTANCE_STATE_ACTIVE) {
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, "aap-lv2", "LV2 plugin %s is not at prepared state.", ctx->aap_plugin_id.c_str());
+        ctx->instance_state = AAP_LV2_INSTANCE_STATE_ERROR;
+        return;
+    }
+
 #if AAP_LV2_LOG_PERF
     struct timespec timeSpecBegin, timeSpecEnd;
     clock_gettime(CLOCK_REALTIME, &timeSpecBegin);
     aap::a_log_f(AAP_LOG_LEVEL_DEBUG, "aap-lv2.perf", "timeout: %ld nsec.", timeoutInNanoseconds);
 #endif
-
-    auto ctx = (AAPLV2PluginContext *) plugin->plugin_specific;
 
     if (buffer != ctx->cached_buffer)
         resetPorts(plugin, buffer, false);
@@ -787,10 +841,8 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
     // convert AAP MIDI/MIDI2 messages into Atom Sequence of MidiEvent.
     for (auto p : ctx->midi_atom_inputs) {
         void *src = buffer->buffers[p.first];
-        auto uridMap = &ctx->features.urid_map_feature_data;
         auto forge = &ctx->midi_in_atom_forge;
-        lv2_atom_forge_init(forge, uridMap);
-        // Port size may be specified by ResizePort::minimumSize (minimum is not necessarily the size, but one thing that needs to check).
+        // Port buffer size may be specified by ResizePort::minimumSize (minimum is not necessarily the size, but one thing that needs to check).
         size_t bufSize = ctx->explicit_port_buffer_sizes.find(p.first) == ctx->explicit_port_buffer_sizes.end() ?
                          buffer->num_frames * sizeof(float) :
                          ctx->explicit_port_buffer_sizes[p.first];
@@ -846,8 +898,19 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
 }
 
 void aap_lv2_plugin_deactivate(AndroidAudioPlugin *plugin) {
-    auto l = (AAPLV2PluginContext *) plugin->plugin_specific;
-    lilv_instance_deactivate(l->instance);
+    auto ctx = (AAPLV2PluginContext *) plugin->plugin_specific;
+    if (ctx->instance_state == AAP_LV2_INSTANCE_STATE_ERROR)
+        return;
+    if (ctx->instance_state == AAP_LV2_INSTANCE_STATE_TERMINATING)
+        return;
+    if (ctx->instance_state == AAP_LV2_INSTANCE_STATE_ACTIVE) {
+        lilv_instance_deactivate(ctx->instance);
+        ctx->instance_state = AAP_LV2_INSTANCE_STATE_PREPARED;
+    } else {
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, "aap-lv2", "LV2 plugin %s is not at prepared state.",
+                     ctx->aap_plugin_id.c_str());
+        ctx->instance_state = AAP_LV2_INSTANCE_STATE_ERROR;
+    }
 }
 
 const void* aap_lv2_get_port_value(
@@ -884,8 +947,26 @@ void aap_lv2_set_port_value(
     memcpy(data, value, size);
 }
 
-void aap_lv2_plugin_get_state(AndroidAudioPlugin *plugin, AndroidAudioPluginState *result) {
-    auto l = (AAPLV2PluginContext *) plugin->plugin_specific;
+size_t aap_lv2_get_state_size(AndroidAudioPluginExtensionTarget target) {
+    auto l = (AAPLV2PluginContext *) target.plugin->plugin_specific;
+    auto features = l->stateFeaturesList();
+    LilvState *state = lilv_state_new_from_instance(l->plugin, l->instance, &l->features.urid_map_feature_data,
+                                                    nullptr, nullptr, nullptr, nullptr, aap_lv2_get_port_value, l, 0, features.get());
+    auto nameNode = lilv_plugin_get_name(l->plugin);
+    std::string stateUriBase{"urn:aap_state:"};
+    auto nameChars = lilv_node_as_string(nameNode);
+    std::string nameString{nameChars};
+    std::string stateUri = stateUriBase + nameString;
+    lilv_node_free(nameNode);
+    auto stateString = lilv_state_to_string(l->world, &l->features.urid_map_feature_data, &l->features.urid_unmap_feature_data,
+                                            state, stateUri.c_str(), nullptr);
+    auto ret = strlen(stateString);
+    lilv_state_delete(l->world, state);
+    return ret;
+}
+
+void aap_lv2_get_state(AndroidAudioPluginExtensionTarget target, aap_state_t *result) {
+    auto l = (AAPLV2PluginContext *) target.plugin->plugin_specific;
     auto features = l->stateFeaturesList();
     LilvState *state = lilv_state_new_from_instance(l->plugin, l->instance, &l->features.urid_map_feature_data,
             nullptr, nullptr, nullptr, nullptr, aap_lv2_get_port_value, l, 0, features.get());
@@ -897,14 +978,14 @@ void aap_lv2_plugin_get_state(AndroidAudioPlugin *plugin, AndroidAudioPluginStat
     lilv_node_free(nameNode);
     auto stateString = lilv_state_to_string(l->world, &l->features.urid_map_feature_data, &l->features.urid_unmap_feature_data,
             state, stateUri.c_str(), nullptr);
-    result->raw_data = strdup(stateString);
+    result->data = strdup(stateString);
     result->data_size = strlen(stateString);
     lilv_state_delete(l->world, state);
 }
 
-void aap_lv2_plugin_set_state(AndroidAudioPlugin *plugin, AndroidAudioPluginState *input) {
-    auto l = (AAPLV2PluginContext *) plugin->plugin_specific;
-    LilvState *state = lilv_state_new_from_string(l->world, &l->features.urid_map_feature_data, (const char*) input->raw_data);
+void aap_lv2_set_state(AndroidAudioPluginExtensionTarget target, aap_state_t *input) {
+    auto l = (AAPLV2PluginContext *) target.plugin->plugin_specific;
+    LilvState *state = lilv_state_new_from_string(l->world, &l->features.urid_map_feature_data, (const char*) input->data);
     auto features = l->stateFeaturesList();
     lilv_state_restore(state, l->instance, aap_lv2_set_port_value, l, 0, features.get());
     lilv_state_delete(l->world, state);
@@ -1095,8 +1176,6 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
             aap_lv2_plugin_activate,
             aap_lv2_plugin_process,
             aap_lv2_plugin_deactivate,
-            aap_lv2_plugin_get_state,
-            aap_lv2_plugin_set_state,
             aap_lv2_plugin_get_extension
     };
     aap::a_log_f(AAP_LOG_LEVEL_INFO, "aap-lv2", "Instantiated aap-lv2 plugin %s", pluginUniqueID);
@@ -1107,20 +1186,17 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
 
 int32_t aap_lv2_on_preset_loaded(Jalv* jalv, const LilvNode* node, const LilvNode* title, void* data) {
     auto name = lilv_node_as_string(title);
-
-    auto presets_context = (aap_presets_context_t*) data;
-    auto ctx = (AAPLV2PluginContext*) presets_context->context;
-    auto uridMap = &ctx->features.urid_map_feature_data;
-    auto uridUnmap = &ctx->features.urid_unmap_feature_data;
+    auto uridMap = &jalv->features.urid_map_feature_data;
+    auto uridUnmap = &jalv->features.urid_unmap_feature_data;
     auto state = lilv_state_new_from_world(jalv->world, uridMap, node);
-    auto stateData = lilv_state_to_string(ctx->world, uridMap, uridUnmap, state, name, nullptr);
+    auto stateData = lilv_state_to_string(jalv->world, uridMap, uridUnmap, state, name, nullptr);
 
     aap_preset_t preset;
-    preset.index = (int32_t) ctx->presets.size();
+    preset.index = (int32_t) jalv->presets.size();
     strncpy(preset.name, name, AAP_PRESETS_EXTENSION_MAX_NAME_LENGTH);
     preset.data_size = (int32_t) strlen(const_cast<const char*>(stateData));
     preset.data = strdup(stateData);
-    ctx->presets.emplace_back(std::make_unique<aap_preset_t>(preset));
+    jalv->presets.emplace_back(std::make_unique<aap_preset_t>(preset));
     aap::a_log_f(AAP_LOG_LEVEL_DEBUG, "AAP-LV2", "aap_lv2_on_preset_loaded. %s: %s", name, lilv_node_as_string(node));
     free((void *) name);
     free(stateData);
@@ -1128,39 +1204,38 @@ int32_t aap_lv2_on_preset_loaded(Jalv* jalv, const LilvNode* node, const LilvNod
     return 0;
 }
 
-void aap_lv2_ensure_preset_loaded(aap_presets_context_t* context) {
-    auto ctx = ((AAPLV2PluginContext *) context->context);
+void aap_lv2_ensure_preset_loaded(AAPLV2PluginContext *ctx) {
     if (ctx->presets.size() == 0)
-        jalv_load_presets(ctx, aap_lv2_on_preset_loaded, context);
+        jalv_load_presets(ctx, aap_lv2_on_preset_loaded, nullptr);
 }
 
-int32_t aap_lv2_get_preset_count(aap_presets_context_t* context) {
-    aap_lv2_ensure_preset_loaded(context);
-    auto ctx = ((AAPLV2PluginContext *) context->context);
+int32_t aap_lv2_get_preset_count(AndroidAudioPluginExtensionTarget target) {
+    auto ctx = ((AAPLV2PluginContext *) target.plugin->plugin_specific);
+    aap_lv2_ensure_preset_loaded(ctx);
     return ctx->presets.size();
 }
-int32_t aap_lv2_get_preset_data_size(aap_presets_context_t* context, int32_t index) {
-    aap_lv2_ensure_preset_loaded(context);
-    auto ctx = ((AAPLV2PluginContext *) context->context);
+int32_t aap_lv2_get_preset_data_size(AndroidAudioPluginExtensionTarget target, int32_t index) {
+    auto ctx = ((AAPLV2PluginContext *) target.plugin->plugin_specific);
+    aap_lv2_ensure_preset_loaded(ctx);
     return ctx->presets[index]->data_size;
 }
-void aap_lv2_get_preset(aap_presets_context_t* context, int32_t index, bool skipBinary, aap_preset_t* destination) {
-    aap_lv2_ensure_preset_loaded(context);
-    auto ctx = ((AAPLV2PluginContext *) context->context);
+void aap_lv2_get_preset(AndroidAudioPluginExtensionTarget target, int32_t index, bool skipBinary, aap_preset_t* destination) {
+    auto ctx = ((AAPLV2PluginContext *) target.plugin->plugin_specific);
+    aap_lv2_ensure_preset_loaded(ctx);
     auto preset = ctx->presets[index].get();
     destination->data_size = preset->data_size;
     strncpy(destination->name, preset->name, AAP_PRESETS_EXTENSION_MAX_NAME_LENGTH);
     if (!skipBinary)
         memcpy(destination->data, preset->data, preset->data_size);
 }
-int32_t aap_lv2_get_preset_index(aap_presets_context_t* context) {
-    aap_lv2_ensure_preset_loaded(context);
-    auto ctx = ((AAPLV2PluginContext *) context->context);
+int32_t aap_lv2_get_preset_index(AndroidAudioPluginExtensionTarget target) {
+    auto ctx = ((AAPLV2PluginContext *) target.plugin->plugin_specific);
+    aap_lv2_ensure_preset_loaded(ctx);
     return ctx->selected_preset_index;
 }
-void aap_lv2_set_preset_index(aap_presets_context_t* context, int32_t index) {
-    aap_lv2_ensure_preset_loaded(context);
-    auto ctx = ((AAPLV2PluginContext *) context->context);
+void aap_lv2_set_preset_index(AndroidAudioPluginExtensionTarget target, int32_t index) {
+    auto ctx = ((AAPLV2PluginContext *) target.plugin->plugin_specific);
+    aap_lv2_ensure_preset_loaded(ctx);
     ctx->selected_preset_index = index;
 }
 
