@@ -12,9 +12,9 @@
 
 #include <aap/unstable/logging.h>
 #include <aap/android-audio-plugin.h>
-#include <aap/unstable/aap-midi2.h>
-#include <aap/unstable/presets.h>
-#include <aap/unstable/state.h>
+#include <aap/ext/aap-midi2.h>
+#include <aap/ext/presets.h>
+#include <aap/ext/state.h>
 
 #include "symap.h"
 #include "zix/sem.h"
