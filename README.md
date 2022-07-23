@@ -2,13 +2,14 @@
 
 This repository contains LV2 backend (or wrapper, or whatever) support for [android-audio-plugin-framework](https://github.com/atsushieno/android-audio-plugin-framework), as well as minimum samples.
 
-There are also dedicated repos for non-trivial LV2 plugin ports and so on:
+There are also dedicated repos for non-trivial LV2 plugin ports and so on (not everything works as expected):
 
 - [aap-lv2-mda](https://github.com/atsushieno/aap-lv2-mda/)
 - [aap-lv2-fluidsynth](https://github.com/atsushieno/aap-lv2-fluidsynth/)
 - [aap-lv2-sfizz](https://github.com/atsushieno/aap-lv2-sfizz)
 - [aap-lv2-guitarix](https://github.com/atsushieno/aap-lv2-guitarix)
 - [aap-lv2-string-machine](https://github.com/atsushieno/aap-lv2-string-machine)
+- [aap-lv2-dragonfly-reverb](https://github.com/atsushieno/aap-lv2-dragonfly-reverb)
 
 
 ## Building
