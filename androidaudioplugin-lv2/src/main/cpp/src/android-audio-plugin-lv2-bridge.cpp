@@ -583,10 +583,11 @@ write_midi_events_to_lv2_forge(AAPLV2PluginContext* ctx, LV2_Atom_Forge *forge, 
     assert(src != nullptr);
     assert(forge != nullptr);
 
-    int32_t srcN = 8;
+    volatile auto aapmb = (AAPMidiBufferHeader*) src;
+    int32_t srcN = sizeof(AAPMidiBufferHeader);
 
     auto csrc = (uint8_t *) src;
-    int32_t srcEnd = *((int32_t *) src + 1) + 8; // offset
+    int32_t srcEnd = srcN + aapmb->length;
 
     uint8_t running_status = 0;
 
@@ -602,6 +603,19 @@ write_midi_events_to_lv2_forge(AAPLV2PluginContext* ctx, LV2_Atom_Forge *forge, 
         if (srcN == srcEnd)
             break; // invalid data
         timecode += (csrc[srcN++] << (7 * digits));
+
+        // Check if the message is Set New Protocol and promote Protocol.
+        if (csrc[srcN] == 0xF0) {
+            int32_t protocol = cmidi2_ci_try_parse_new_protocol(csrc + srcN, 19);
+            if (protocol != 0) {
+                ctx->ipc_midi2_enabled = protocol == 2;
+                // At this state, we discard any remaining buffer as Set New Protocol should be
+                // sent only by itself.
+                // MIDI-CI specification explicitly tells that there should be some intervals (100msec).
+                aap::aprintf("MIDI-CI Set New Protocol received: %d", protocol);
+                break;
+            }
+        }
 
         uint8_t statusByte = csrc[srcN] >= 0x80 ? csrc[srcN] : running_status;
         running_status = statusByte;
@@ -655,20 +669,12 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, LV2_Atom_Forg
     assert(src != nullptr);
     assert(forge != nullptr);
 
-    // The header bytes are structured as:
-    // - 0..3: int32_t size
-    // - 4..7: reserved
-    // - 8..11: MIDI-CI protocol (MIDI 1.0 or MIDI 2.0)
-    // - 12..15: reserved
-    int32_t srcN = 32;
-
-    int32_t srcEnd = ((int32_t *) src)[0] + 32; // offset
-
+    volatile auto aapmb = (AAPMidiBufferHeader*) src;
     uint64_t currentJRTimestamp = 0; // unit of 1/31250 sec. (JR_TIMESTAMP_TICKS_PER_SECOND)
 
     uint8_t midi1Bytes[16];
 
-    CMIDI2_UMP_SEQUENCE_FOREACH(src + srcN, srcEnd - srcN, iter) {
+    CMIDI2_UMP_SEQUENCE_FOREACH((uint8_t*) src + sizeof(AAPMidiBufferHeader), aapmb->length, iter) {
         auto ump = (cmidi2_ump*) iter;
         uint32_t midiEventSize = 3;
         uint64_t sysex7, sysex8_1, sysex8_2;

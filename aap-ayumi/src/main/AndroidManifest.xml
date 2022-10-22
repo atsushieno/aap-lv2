@@ -10,7 +10,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
-        tools:targetApi="r">
+        >
         <activity android:name="org.androidaudioplugin.ui.compose.PluginListActivity"
             tools:ignore="Instantiatable"
             android:exported="true">
@@ -24,14 +24,14 @@
             android:label="@string/app_name" android:exported="true">
             <intent-filter>
                 <action
-                    android:name="org.androidaudioplugin.AudioPluginService.V1" />
+                    android:name="org.androidaudioplugin.AudioPluginService.V2" />
             </intent-filter>
             <meta-data
-                android:name="org.androidaudioplugin.AudioPluginService.V1#Plugins"
+                android:name="org.androidaudioplugin.AudioPluginService.V2#Plugins"
                 android:resource="@xml/aap_metadata"
                 />
             <meta-data
-                android:name="org.androidaudioplugin.AudioPluginService.V1#Extensions"
+                android:name="org.androidaudioplugin.AudioPluginService.V2#Extensions"
                 android:value="org.androidaudioplugin.lv2.AudioPluginLV2ServiceExtension"
                 />
         </service>
