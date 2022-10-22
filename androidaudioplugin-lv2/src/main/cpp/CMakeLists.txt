@@ -23,6 +23,7 @@ endif (ANDROID)
 
 set (androidaudioplugin-lv2_INCLUDES
 		${AAPDIR}/include
+		${AAPDIR}/external/cmidi2
 		"src"
 		${DEPBASE}/serd/include
 		${DEPBASE}/sord/include
