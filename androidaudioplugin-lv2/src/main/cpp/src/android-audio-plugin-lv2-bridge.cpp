@@ -867,7 +867,8 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
          * There may be b1) and b2) in the future: if the plugin only supports UMP, then convert it to UMP and send it.
          */
 
-        if (ctx->ump_established_protocol == 0 && ctx->ipc_midi2_enabled) {
+        // Since V2 we only support MIDI2 UMPs. They are translated to MIDI1 bytes to put into Atom Sequence.
+        if (/*ctx->ump_established_protocol == 0 &&*/ ctx->ipc_midi2_enabled) {
             auto seqRef = lv2_atom_forge_sequence_head(forge, &frame, ctx->urids.urid_time_frame);
             auto seq = (LV2_Atom_Sequence *) lv2_atom_forge_deref(forge, seqRef);
             lv2_atom_forge_pop(forge, &frame);
@@ -1061,6 +1062,7 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
 
     auto ctx = new AAPLV2PluginContext(statics, world, plugin, pluginUniqueID, sampleRate);
 
+    /*
     auto midi2ext = (aap_midi2_extension_t*) host->get_extension_data(host, AAP_MIDI2_EXTENSION_URI);
     if (midi2ext != nullptr) {
         ctx->aap_midi2 = *midi2ext;
@@ -1071,7 +1073,9 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
             // and in the future the conversion will be applied optionally if the plugin
             // does not support MIDI 2.0.
             ctx->ipc_midi2_enabled = true;
-    }
+    }*/
+    // It is the only value that V2 protocol supports.
+    ctx->ipc_midi2_enabled = true;
 
     ctx->features.urid_map_feature_data.handle = ctx;
     ctx->features.urid_map_feature_data.map = map_uri;

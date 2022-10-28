@@ -62,8 +62,6 @@ target_link_libraries(ayumi-lv2 android log)
 endif (BUILD_WITH_PREFAB)
 
 # set non-zero this if you want to debug with AddressSanitizer
-set(AAP_DEBUG_WITH_ASAN 0)
-
 if (AAP_DEBUG_WITH_ASAN)
     target_compile_options(ayumi-lv2
             PUBLIC
