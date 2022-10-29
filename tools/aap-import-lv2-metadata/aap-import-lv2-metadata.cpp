@@ -178,7 +178,13 @@ int main(int argc, const char **argv)
 			escape_xml(lilv_node_as_uri(lilv_plugin_get_uri(plugin))),
 			escape_xml(plugin_lv2dir)
 			);
-		fprintf(xmlFP, "    <ports>\n      <port direction='input' content='midi2' name='MIDI In' />\n      <port direction='output' content='midi2' name='MIDI Out' />\n      <port direction='output' content='audio' name='Left Out' />\n      <port direction='output' content='audio' name='Right Out' />\n    </ports>\n");
+		fprintf(xmlFP, "    <ports>\n");
+		fprintf(xmlFP, "      <port direction='input' content='midi2' name='MIDI In' />\n      <port direction='output' content='midi2' name='MIDI Out' />\n");
+		// FIXME: these audio port settings are hacky. They are not necessarily stereo. Also, instrument can take audio inputs.
+		if (!is_plugin_instrument(plugin))
+			fprintf(xmlFP, "      <port direction='input' content='audio' name='Left In' />\n      <port direction='input' content='audio' name='Right In' />\n");
+		fprintf(xmlFP, "      <port direction='output' content='audio' name='Left Out' />\n      <port direction='output' content='audio' name='Right Out' />\n");
+		fprintf(xmlFP, "    </ports>\n");
 		fprintf(xmlFP, "    <parameters xmlns='urn://androidaudioplugin.org/extensions/parameters'>\n");
 		
 		for (uint32_t p = 0; p < lilv_plugin_get_num_ports(plugin); p++) {
