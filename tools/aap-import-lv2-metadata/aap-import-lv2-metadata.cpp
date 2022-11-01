@@ -178,15 +178,8 @@ int main(int argc, const char **argv)
 			escape_xml(lilv_node_as_uri(lilv_plugin_get_uri(plugin))),
 			escape_xml(plugin_lv2dir)
 			);
-		fprintf(xmlFP, "    <ports>\n");
-		fprintf(xmlFP, "      <port direction='input' content='midi2' name='MIDI In' />\n      <port direction='output' content='midi2' name='MIDI Out' />\n");
-		// FIXME: these audio port settings are hacky. They are not necessarily stereo. Also, instrument can take audio inputs.
-		if (!is_plugin_instrument(plugin))
-			fprintf(xmlFP, "      <port direction='input' content='audio' name='Left In' />\n      <port direction='input' content='audio' name='Right In' />\n");
-		fprintf(xmlFP, "      <port direction='output' content='audio' name='Left Out' />\n      <port direction='output' content='audio' name='Right Out' />\n");
-		fprintf(xmlFP, "    </ports>\n");
+
 		fprintf(xmlFP, "    <parameters xmlns='urn://androidaudioplugin.org/extensions/parameters'>\n");
-		
 		for (uint32_t p = 0; p < lilv_plugin_get_num_ports(plugin); p++) {
 			auto port = lilv_plugin_get_port_by_index(plugin, p);
 			if (IS_AUDIO_PORT(plugin, port))
@@ -251,6 +244,22 @@ int main(int argc, const char **argv)
 			if(propertyTypeNode) lilv_node_free(propertyTypeNode);
 		}
 		fprintf(xmlFP, "    </parameters>\n");
+
+		fprintf(xmlFP, "    <ports>\n");
+		for (uint32_t p = 0; p < lilv_plugin_get_num_ports(plugin); p++) {
+			auto port = lilv_plugin_get_port_by_index(plugin, p);
+			auto nameNode = lilv_port_get_name(plugin, port);
+			if (IS_AUDIO_PORT(plugin, port))
+				fprintf(xmlFP, "      <port direction='%s' content='audio' name='%s' />\n",
+					IS_INPUT_PORT(plugin, port) ? "input" : "output",
+					nameNode ? lilv_node_as_string(nameNode) : IS_INPUT_PORT(plugin, port) ? "(Audio In)" : "(Audio Out)");
+			if (name)
+				free(nameNode);
+		}
+		fprintf(xmlFP, "      <port direction='input' content='midi2' name='MIDI In' />\n");
+		fprintf(xmlFP, "      <port direction='output' content='midi2' name='MIDI Out' />\n");
+		fprintf(xmlFP, "    </ports>\n");
+
 		fprintf(xmlFP, "  </plugin>\n");
 
 		for(int p = 0; p < numPlugins; p++) {
