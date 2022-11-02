@@ -14,6 +14,168 @@
 #include <aap/ext/presets.h>
 #include <aap/ext/state.h>
 
+// imported from jalv_internal.h
+typedef int (*PresetSink)(Jalv*           jalv,
+                          const LilvNode* node,
+                          const LilvNode* title,
+                          void*           data);
+
+// imported from jalv/src/state.c with some changes to match AAPLV2Context
+int
+jalv_load_presets(Jalv* jalv, PresetSink sink, void* data)
+{
+    LilvNodes* presets = lilv_plugin_get_related(jalv->plugin,
+                                                 jalv->statics->presets_preset_node);
+    LILV_FOREACH(nodes, i, presets) {
+        const LilvNode* preset = lilv_nodes_get(presets, i);
+        lilv_world_load_resource(jalv->world, preset);
+        if (!sink) {
+            continue;
+        }
+
+        LilvNodes* labels = lilv_world_find_nodes(
+                jalv->world, preset, jalv->statics->rdfs_label_node, nullptr);
+        if (labels) {
+            const LilvNode* label = lilv_nodes_get_first(labels);
+            sink(jalv, preset, label, data);
+            lilv_nodes_free(labels);
+        } else {
+            fprintf(stderr, "Preset <%s> has no rdfs:label\n",
+                    lilv_node_as_string(lilv_nodes_get(presets, i)));
+        }
+    }
+    lilv_nodes_free(presets);
+
+    return 0;
+}
+
+// The code below (jalv_worker_xxx) is copied from jalv worker.c and then made minimum required changes.
+
+static LV2_Worker_Status
+jalv_worker_respond(LV2_Worker_Respond_Handle handle,
+                    uint32_t                  size,
+                    const void*               data)
+{
+    JalvWorker* worker = (JalvWorker*)handle;
+    zix_ring_write(worker->responses, (const char*)&size, sizeof(size));
+    zix_ring_write(worker->responses, (const char*)data, size);
+    return LV2_WORKER_SUCCESS;
+}
+
+static void*
+worker_func(void* data)
+{
+    JalvWorker* worker = (JalvWorker*)data;
+    Jalv*       jalv   = worker->ctx;
+    void*       buf    = NULL;
+    while (true) {
+        zix_sem_wait(&worker->sem);
+        if (jalv->exit) {
+            break;
+        }
+
+        uint32_t size = 0;
+        zix_ring_read(worker->requests, (char*)&size, sizeof(size));
+
+        if (!(buf = realloc(buf, size))) {
+            fprintf(stderr, "error: realloc() failed\n");
+            free(buf);
+            return NULL;
+        }
+
+        zix_ring_read(worker->requests, (char*)buf, size);
+
+        zix_sem_wait(&jalv->work_lock);
+        worker->iface->work(
+                jalv->instance->lv2_handle, jalv_worker_respond, worker, size, buf);
+        zix_sem_post(&jalv->work_lock);
+    }
+
+    free(buf);
+    return NULL;
+}
+
+void
+jalv_worker_init(Jalv*                       ZIX_UNUSED(jalv),
+                 JalvWorker*                 worker,
+                 const LV2_Worker_Interface* iface,
+                 bool                        threaded)
+{
+    worker->iface = iface;
+    worker->threaded = threaded;
+    if (threaded) {
+        zix_thread_create(&worker->thread, 4096, worker_func, worker);
+        worker->requests = zix_ring_new(4096);
+        zix_ring_mlock(worker->requests);
+    }
+    worker->responses = zix_ring_new(4096);
+    worker->response  = malloc(4096);
+    zix_ring_mlock(worker->responses);
+}
+
+void
+jalv_worker_finish(JalvWorker* worker)
+{
+    if (worker->threaded) {
+        zix_sem_post(&worker->sem);
+        zix_thread_join(worker->thread, NULL);
+    }
+}
+
+void
+jalv_worker_destroy(JalvWorker* worker)
+{
+    if (worker->requests) {
+        if (worker->threaded) {
+            zix_ring_free(worker->requests);
+        }
+        zix_ring_free(worker->responses);
+        free(worker->response);
+    }
+}
+
+LV2_Worker_Status
+jalv_worker_schedule(LV2_Worker_Schedule_Handle handle,
+                     uint32_t                   size,
+                     const void*                data)
+{
+    JalvWorker* worker = (JalvWorker*)handle;
+    Jalv*       jalv   = worker->ctx;
+    if (worker->threaded) {
+        // Schedule a request to be executed by the worker thread
+        zix_ring_write(worker->requests, (const char*)&size, sizeof(size));
+        zix_ring_write(worker->requests, (const char*)data, size);
+        zix_sem_post(&worker->sem);
+    } else {
+        // Execute work immediately in this thread
+        zix_sem_wait(&jalv->work_lock);
+        worker->iface->work(
+                jalv->instance->lv2_handle, jalv_worker_respond, worker, size, data);
+        zix_sem_post(&jalv->work_lock);
+    }
+    return LV2_WORKER_SUCCESS;
+}
+
+void
+jalv_worker_emit_responses(JalvWorker* worker, LilvInstance* instance)
+{
+    if (worker->responses) {
+        uint32_t read_space = zix_ring_read_space(worker->responses);
+        while (read_space) {
+            uint32_t size = 0;
+            zix_ring_read(worker->responses, (char*)&size, sizeof(size));
+
+            zix_ring_read(worker->responses, (char*)worker->response, size);
+
+            worker->iface->work_response(
+                    instance->lv2_handle, size, worker->response);
+
+            read_space -= sizeof(size) + size;
+        }
+    }
+}
+// end of jalv worker code.
+
 // State extension
 
 const void* aap_lv2_get_port_value(
@@ -152,3 +314,34 @@ void aap_lv2_set_preset_index(AndroidAudioPluginExtensionTarget target, int32_t 
 }
 
 
+// AAP extensions
+
+size_t aap_lv2_get_state_size(AndroidAudioPluginExtensionTarget target);
+void aap_lv2_get_state(AndroidAudioPluginExtensionTarget target, aap_state_t *input);
+void aap_lv2_set_state(AndroidAudioPluginExtensionTarget target, aap_state_t *input);
+
+int32_t aap_lv2_get_preset_count(AndroidAudioPluginExtensionTarget target);
+int32_t aap_lv2_get_preset_data_size(AndroidAudioPluginExtensionTarget target, int32_t index);
+void aap_lv2_get_preset(AndroidAudioPluginExtensionTarget target, int32_t index, bool skipBinary, aap_preset_t* destination);
+int32_t aap_lv2_get_preset_index(AndroidAudioPluginExtensionTarget target);
+void aap_lv2_set_preset_index(AndroidAudioPluginExtensionTarget target, int32_t index);
+
+aap_state_extension_t state_ext{aap_lv2_get_state_size,
+                                aap_lv2_get_state,
+                                aap_lv2_set_state};
+
+aap_presets_extension_t presets_ext{aap_lv2_get_preset_count,
+                                    aap_lv2_get_preset_data_size,
+                                    aap_lv2_get_preset,
+                                    aap_lv2_get_preset_index,
+                                    aap_lv2_set_preset_index};
+
+void* aap_lv2_plugin_get_extension(AndroidAudioPlugin *plugin, const char *uri) {
+    if (strcmp(uri, AAP_STATE_EXTENSION_URI) == 0) {
+        return &state_ext;
+    }
+    if (strcmp(uri, AAP_PRESETS_EXTENSION_URI) == 0) {
+        return &presets_ext;
+    }
+    return nullptr;
+}

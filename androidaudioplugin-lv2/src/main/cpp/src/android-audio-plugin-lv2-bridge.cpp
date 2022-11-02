@@ -40,6 +40,8 @@
 #define AAP_LV2_LOG_PERF 0
 #define AAP_TO_ATOM_CONVERSION_BUFFER_SIZE 0x80000 // 524288
 
+#define AAP_LV2_TAG "aap-lv2"
+
 enum AAPLV2InstanceState {
     AAP_LV2_INSTANCE_STATE_INITIAL = 1,
     AAP_LV2_INSTANCE_STATE_PREPARED,
@@ -136,32 +138,14 @@ public:
     LV2_Feature threadSafeRestoreFeature{LV2_STATE__threadSafeRestore, nullptr};
 };
 
-size_t aap_lv2_get_state_size(AndroidAudioPluginExtensionTarget target);
-void aap_lv2_get_state(AndroidAudioPluginExtensionTarget target, aap_state_t *input);
-void aap_lv2_set_state(AndroidAudioPluginExtensionTarget target, aap_state_t *input);
-
-int32_t aap_lv2_get_preset_count(AndroidAudioPluginExtensionTarget target);
-int32_t aap_lv2_get_preset_data_size(AndroidAudioPluginExtensionTarget target, int32_t index);
-void aap_lv2_get_preset(AndroidAudioPluginExtensionTarget target, int32_t index, bool skipBinary, aap_preset_t* destination);
-int32_t aap_lv2_get_preset_index(AndroidAudioPluginExtensionTarget target);
-void aap_lv2_set_preset_index(AndroidAudioPluginExtensionTarget target, int32_t index);
+void* aap_lv2_plugin_get_extension(AndroidAudioPlugin *plugin, const char *uri);
 
 struct AAPLV2URIDs {
     LV2_URID urid_atom_sequence_type{0},
-        urid_midi_event_type{0},
-        urid_time_frame{0},
-        urid_atom_float_type{0};
+            urid_midi_event_type{0},
+            urid_time_frame{0},
+            urid_atom_float_type{0};
 };
-
-aap_state_extension_t state_ext{aap_lv2_get_state_size,
-                                aap_lv2_get_state,
-                                aap_lv2_set_state};
-
-aap_presets_extension_t presets_ext{aap_lv2_get_preset_count,
-                                aap_lv2_get_preset_data_size,
-                                aap_lv2_get_preset,
-                                aap_lv2_get_preset_index,
-                                aap_lv2_set_preset_index};
 
 class AAPLV2PluginContext {
 public:
@@ -224,16 +208,6 @@ public:
         return ret;
     }
 
-    void* getExtension(const char *uri) {
-        if (strcmp(uri, AAP_STATE_EXTENSION_URI) == 0) {
-            return &state_ext;
-        }
-        if (strcmp(uri, AAP_PRESETS_EXTENSION_URI) == 0) {
-            return &presets_ext;
-        }
-        return nullptr;
-    }
-
     // from jalv codebase
     Symap*             symap{nullptr};          ///< URI map
     ZixSem             symap_lock;     ///< Lock for URI map
@@ -244,41 +218,6 @@ public:
     bool exit{false};
 };
 
-
-// imported from jalv_internal.h
-typedef int (*PresetSink)(Jalv*           jalv,
-                          const LilvNode* node,
-                          const LilvNode* title,
-                          void*           data);
-
-// imported from jalv/src/state.c with some changes to match AAPLV2Context
-int
-jalv_load_presets(Jalv* jalv, PresetSink sink, void* data)
-{
-    LilvNodes* presets = lilv_plugin_get_related(jalv->plugin,
-                                                 jalv->statics->presets_preset_node);
-    LILV_FOREACH(nodes, i, presets) {
-        const LilvNode* preset = lilv_nodes_get(presets, i);
-        lilv_world_load_resource(jalv->world, preset);
-        if (!sink) {
-            continue;
-        }
-
-        LilvNodes* labels = lilv_world_find_nodes(
-                jalv->world, preset, jalv->statics->rdfs_label_node, nullptr);
-        if (labels) {
-            const LilvNode* label = lilv_nodes_get_first(labels);
-            sink(jalv, preset, label, data);
-            lilv_nodes_free(labels);
-        } else {
-            fprintf(stderr, "Preset <%s> has no rdfs:label\n",
-                    lilv_node_as_string(lilv_nodes_get(presets, i)));
-        }
-    }
-    lilv_nodes_free(presets);
-
-    return 0;
-}
 
 static LV2_URID
 map_uri(LV2_URID_Map_Handle handle,
@@ -327,133 +266,21 @@ PORTCHECKER_AND (IS_ATOM_IN, IS_ATOM_PORT, IS_INPUT_PORT)
 
 PORTCHECKER_AND (IS_ATOM_OUT, IS_ATOM_PORT, IS_OUTPUT_PORT)
 
-// The code below (jalv_worker_xxx) is copied from jalv worker.c and then made minimum required changes.
-
-static LV2_Worker_Status
-jalv_worker_respond(LV2_Worker_Respond_Handle handle,
-                    uint32_t                  size,
-                    const void*               data)
-{
-    JalvWorker* worker = (JalvWorker*)handle;
-    zix_ring_write(worker->responses, (const char*)&size, sizeof(size));
-    zix_ring_write(worker->responses, (const char*)data, size);
-    return LV2_WORKER_SUCCESS;
-}
-
-static void*
-worker_func(void* data)
-{
-    JalvWorker* worker = (JalvWorker*)data;
-    Jalv*       jalv   = worker->ctx;
-    void*       buf    = NULL;
-    while (true) {
-        zix_sem_wait(&worker->sem);
-        if (jalv->exit) {
-            break;
-        }
-
-        uint32_t size = 0;
-        zix_ring_read(worker->requests, (char*)&size, sizeof(size));
-
-        if (!(buf = realloc(buf, size))) {
-            fprintf(stderr, "error: realloc() failed\n");
-            free(buf);
-            return NULL;
-        }
-
-        zix_ring_read(worker->requests, (char*)buf, size);
-
-        zix_sem_wait(&jalv->work_lock);
-        worker->iface->work(
-                jalv->instance->lv2_handle, jalv_worker_respond, worker, size, buf);
-        zix_sem_post(&jalv->work_lock);
-    }
-
-    free(buf);
-    return NULL;
-}
-
 void
 jalv_worker_init(Jalv*                       ZIX_UNUSED(jalv),
                  JalvWorker*                 worker,
                  const LV2_Worker_Interface* iface,
-                 bool                        threaded)
-{
-    worker->iface = iface;
-    worker->threaded = threaded;
-    if (threaded) {
-        zix_thread_create(&worker->thread, 4096, worker_func, worker);
-        worker->requests = zix_ring_new(4096);
-        zix_ring_mlock(worker->requests);
-    }
-    worker->responses = zix_ring_new(4096);
-    worker->response  = malloc(4096);
-    zix_ring_mlock(worker->responses);
-}
-
-void
-jalv_worker_finish(JalvWorker* worker)
-{
-    if (worker->threaded) {
-        zix_sem_post(&worker->sem);
-        zix_thread_join(worker->thread, NULL);
-    }
-}
-
-void
-jalv_worker_destroy(JalvWorker* worker)
-{
-    if (worker->requests) {
-        if (worker->threaded) {
-            zix_ring_free(worker->requests);
-        }
-        zix_ring_free(worker->responses);
-        free(worker->response);
-    }
-}
-
+                 bool                        threaded);
 LV2_Worker_Status
 jalv_worker_schedule(LV2_Worker_Schedule_Handle handle,
                      uint32_t                   size,
-                     const void*                data)
-{
-    JalvWorker* worker = (JalvWorker*)handle;
-    Jalv*       jalv   = worker->ctx;
-    if (worker->threaded) {
-        // Schedule a request to be executed by the worker thread
-        zix_ring_write(worker->requests, (const char*)&size, sizeof(size));
-        zix_ring_write(worker->requests, (const char*)data, size);
-        zix_sem_post(&worker->sem);
-    } else {
-        // Execute work immediately in this thread
-        zix_sem_wait(&jalv->work_lock);
-        worker->iface->work(
-                jalv->instance->lv2_handle, jalv_worker_respond, worker, size, data);
-        zix_sem_post(&jalv->work_lock);
-    }
-    return LV2_WORKER_SUCCESS;
-}
-
+                     const void*                data);
 void
-jalv_worker_emit_responses(JalvWorker* worker, LilvInstance* instance)
-{
-    if (worker->responses) {
-        uint32_t read_space = zix_ring_read_space(worker->responses);
-        while (read_space) {
-            uint32_t size = 0;
-            zix_ring_read(worker->responses, (char*)&size, sizeof(size));
-
-            zix_ring_read(worker->responses, (char*)worker->response, size);
-
-            worker->iface->work_response(
-                    instance->lv2_handle, size, worker->response);
-
-            read_space -= sizeof(size) + size;
-        }
-    }
-}
-
-// end of jalv worker code.
+jalv_worker_destroy(JalvWorker* worker);
+void
+jalv_worker_finish(JalvWorker* worker);
+void
+jalv_worker_emit_responses(JalvWorker* worker, LilvInstance* instance);
 
 void aap_lv2_plugin_delete(
         AndroidAudioPluginFactory *,
@@ -537,7 +364,7 @@ void aap_lv2_plugin_prepare(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer
     if (ctx->instance_state == AAP_LV2_INSTANCE_STATE_ERROR)
         return;
     if (ctx->instance_state != AAP_LV2_INSTANCE_STATE_INITIAL) {
-        aap::a_log_f(AAP_LOG_LEVEL_ERROR, "aap-lv2", "LV2 plugin %s not at unprepared state.", ctx->aap_plugin_id.c_str());
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, AAP_LV2_TAG, "LV2 plugin %s not at unprepared state.", ctx->aap_plugin_id.c_str());
         ctx->instance_state = AAP_LV2_INSTANCE_STATE_ERROR;
         return;
     }
@@ -552,7 +379,7 @@ void aap_lv2_plugin_prepare(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer
         lv2_atom_forge_init(forge, uridMap);
     }
 
-    aap::a_log_f(AAP_LOG_LEVEL_INFO, "aap-lv2", "LV2 plugin %s is ready, prepared.", ctx->aap_plugin_id.c_str());
+    aap::a_log_f(AAP_LOG_LEVEL_INFO, AAP_LV2_TAG, "LV2 plugin %s is ready, prepared.", ctx->aap_plugin_id.c_str());
 }
 
 void aap_lv2_plugin_activate(AndroidAudioPlugin *plugin) {
@@ -565,7 +392,7 @@ void aap_lv2_plugin_activate(AndroidAudioPlugin *plugin) {
         lilv_instance_activate(ctx->instance);
         ctx->instance_state = AAP_LV2_INSTANCE_STATE_ACTIVE;
     } else {
-        aap::a_log_f(AAP_LOG_LEVEL_ERROR, "aap-lv2", "LV2 plugin %s is not at prepared state.", ctx->aap_plugin_id.c_str());
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, AAP_LV2_TAG, "LV2 plugin %s is not at prepared state.", ctx->aap_plugin_id.c_str());
         ctx->instance_state = AAP_LV2_INSTANCE_STATE_ERROR;
     }
 }
@@ -720,7 +547,7 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
     if (ctx->instance_state == AAP_LV2_INSTANCE_STATE_TERMINATING)
         return;
     if (!ctx->instance_state == AAP_LV2_INSTANCE_STATE_ACTIVE) {
-        aap::a_log_f(AAP_LOG_LEVEL_ERROR, "aap-lv2", "LV2 plugin %s is not at prepared state.", ctx->aap_plugin_id.c_str());
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, AAP_LV2_TAG, "LV2 plugin %s is not at prepared state.", ctx->aap_plugin_id.c_str());
         ctx->instance_state = AAP_LV2_INSTANCE_STATE_ERROR;
         return;
     }
@@ -796,20 +623,10 @@ void aap_lv2_plugin_deactivate(AndroidAudioPlugin *plugin) {
         lilv_instance_deactivate(ctx->instance);
         ctx->instance_state = AAP_LV2_INSTANCE_STATE_PREPARED;
     } else {
-        aap::a_log_f(AAP_LOG_LEVEL_ERROR, "aap-lv2", "LV2 plugin %s is not at prepared state.",
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, AAP_LV2_TAG, "LV2 plugin %s is not at prepared state.",
                      ctx->aap_plugin_id.c_str());
         ctx->instance_state = AAP_LV2_INSTANCE_STATE_ERROR;
     }
-}
-
-LV2_Worker_Status
-aap_lv2_schedule_work(LV2_Worker_Schedule_Handle handle, uint32_t size, const void *data) {
-    return jalv_worker_schedule(handle, size, data);
-}
-
-void* aap_lv2_plugin_get_extension(AndroidAudioPlugin *plugin, const char *uri) {
-    auto ctx = (AAPLV2PluginContext *) plugin->plugin_specific;
-    return ctx->getExtension(uri);
 }
 
 AndroidAudioPlugin *aap_lv2_plugin_new(
@@ -817,7 +634,7 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
         const char *pluginUniqueID,
         int sampleRate,
         AndroidAudioPluginHost *host) {
-    aap::a_log_f(AAP_LOG_LEVEL_INFO, "aap-lv2", "Instantiating aap-lv2 plugin %s", pluginUniqueID);
+    aap::a_log_f(AAP_LOG_LEVEL_INFO, AAP_LV2_TAG, "Instantiating aap-lv2 plugin %s", pluginUniqueID);
 
     auto world = lilv_world_new();
     // Here we expect that LV2_PATH is already set using setenv() etc.
@@ -827,30 +644,30 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
 
     auto allPlugins = lilv_world_get_all_plugins(world);
     if (lilv_plugins_size(allPlugins) <= 0) {
-        aap::a_log_f(AAP_LOG_LEVEL_ERROR, "aap-lv2", "No LV2 plugins were found.");
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, AAP_LV2_TAG, "No LV2 plugins were found.");
         return nullptr;
     }
 
-    // LV2 Plugin URI is just LV2 URI prefixed by "lv2".
+    // AAP-LV2 Plugin URI is just LV2 URI prefixed by "lv2:".
     if (strncmp(pluginUniqueID, "lv2:", strlen("lv2:"))) {
-        aap::a_log_f(AAP_LOG_LEVEL_ERROR, "aap-lv2", "Unexpected AAP LV2 pluginId: %s", pluginUniqueID);
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, AAP_LV2_TAG, "Unexpected AAP LV2 pluginId: %s", pluginUniqueID);
         return nullptr;
     }
     auto pluginUriNode = lilv_new_uri(world, pluginUniqueID + strlen("lv2:"));
     const LilvPlugin *plugin = lilv_plugins_get_by_uri(allPlugins, pluginUriNode);
     lilv_node_free(pluginUriNode);
     if (!plugin) {
-        aap::a_log_f(AAP_LOG_LEVEL_ERROR, "aap-lv2", "LV2 plugin could not be instantiated: %s",
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, AAP_LV2_TAG, "LV2 plugin could not be instantiated: %s",
                      lilv_node_as_uri(pluginUriNode));
         return nullptr;
     }
     if (!lilv_plugin_verify(plugin)) {
-        aap::a_log_f(AAP_LOG_LEVEL_ERROR, "aap-lv2", "LV2 plugin is invalid: %s",
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, AAP_LV2_TAG, "LV2 plugin is invalid: %s",
                      lilv_node_as_uri(pluginUriNode));
         return nullptr;
     }
 
-    aap::a_log_f(AAP_LOG_LEVEL_INFO, "aap-lv2", "Plugin %s is valid, ready to instantiate.", pluginUniqueID);
+    aap::a_log_f(AAP_LOG_LEVEL_INFO, AAP_LV2_TAG, "Plugin %s is valid, ready to instantiate.", pluginUniqueID);
 
     auto ctx = new AAPLV2PluginContext(statics, world, plugin, pluginUniqueID, sampleRate);
 
@@ -860,12 +677,12 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
     ctx->features.urid_unmap_feature_data.unmap = unmap_uri;
 
     if (zix_sem_init(&ctx->symap_lock, 1)) {
-        aap::a_log_f(AAP_LOG_LEVEL_ERROR, "aap-lv2", "Failed to initialize semaphore (symap). plugin: %s",
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, AAP_LV2_TAG, "Failed to initialize semaphore (symap). plugin: %s",
                      lilv_node_as_uri(pluginUriNode));
         return nullptr;
     }
     if (zix_sem_init(&ctx->work_lock, 1)) {
-        aap::a_log_f(AAP_LOG_LEVEL_ERROR, "aap-lv2", "Failed to initialize semaphore (work_lock). plugin: %s",
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, AAP_LV2_TAG, "Failed to initialize semaphore (work_lock). plugin: %s",
                      lilv_node_as_uri(pluginUriNode));
         return nullptr;
     }
@@ -873,9 +690,9 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
     ctx->state_worker.ctx = ctx;
 
     ctx->features.worker_schedule_data.handle = &ctx->worker;
-    ctx->features.worker_schedule_data.schedule_work = aap_lv2_schedule_work;
+    ctx->features.worker_schedule_data.schedule_work = jalv_worker_schedule;
     ctx->features.state_worker_schedule_data.handle = &ctx->state_worker;
-    ctx->features.state_worker_schedule_data.schedule_work = aap_lv2_schedule_work;
+    ctx->features.state_worker_schedule_data.schedule_work = jalv_worker_schedule;
 
     ctx->features.minBlockLengthOption = {LV2_OPTIONS_INSTANCE,
         0,
@@ -911,14 +728,14 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
 
     // for jalv worker
     if (zix_sem_init(&ctx->worker.sem, 0)) {
-        aap::a_log_f(AAP_LOG_LEVEL_ERROR, "aap-lv2", "Failed to initialize semaphore on worker. plugin: %s",
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, AAP_LV2_TAG, "Failed to initialize semaphore on worker. plugin: %s",
                      lilv_node_as_uri(pluginUriNode));
         return nullptr;
     }
 
     LilvInstance *instance = lilv_plugin_instantiate(plugin, sampleRate, features);
     if (!instance) {
-        aap::a_log_f(AAP_LOG_LEVEL_ERROR, "aap-lv2", "Failed to instantiate plugin: %s",
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, AAP_LV2_TAG, "Failed to instantiate plugin: %s",
                      lilv_node_as_uri(pluginUriNode));
         return nullptr;
     }
@@ -958,7 +775,7 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
             aap_lv2_plugin_deactivate,
             aap_lv2_plugin_get_extension
     };
-    aap::a_log_f(AAP_LOG_LEVEL_INFO, "aap-lv2", "Instantiated aap-lv2 plugin %s", pluginUniqueID);
+    aap::a_log_f(AAP_LOG_LEVEL_INFO, AAP_LV2_TAG, "Instantiated aap-lv2 plugin %s", pluginUniqueID);
     return ret;
 }
 
