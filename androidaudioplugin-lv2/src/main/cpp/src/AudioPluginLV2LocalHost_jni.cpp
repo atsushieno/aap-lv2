@@ -21,37 +21,11 @@ extern AAssetManager *current_asset_manager;
 
 namespace aaplv2 {
 
-typedef void (*set_io_context_func)(void *);
-
-void *libdl;
-set_io_context_func libserd_set_context = nullptr;
-set_io_context_func liblilv_set_context = nullptr;
-
-void ensureDLEach(const char *libname, set_io_context_func &context) {
-    if (context == nullptr) {
-        libdl = dlopen(libname, RTLD_NOW);
-        assert (libdl != nullptr);
-        context = (set_io_context_func) dlsym(libdl, "abstract_set_io_context");
-        assert (context != nullptr);
-    }
-}
-
-void ensureDLLoaded() {
-    ensureDLEach("libserd-0.so", libserd_set_context);
-    ensureDLEach("liblilv-0.so", liblilv_set_context);
-}
-
 void set_io_context(AAssetManager *am) {
-    //ensureDLLoaded();
-    //libserd_set_context(am);
-    //liblilv_set_context(am);
-
     current_asset_manager = am;
 }
 
 void cleanup() {
-    if (libdl)
-        dlclose(libdl);
     set_io_context(nullptr);
 }
 }
