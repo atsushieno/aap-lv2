@@ -495,10 +495,8 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, LV2_Atom_Forg
             break;
         }
 
-        lv2_atom_forge_raw(forge, &midiEventSize, sizeof(int));
-        lv2_atom_forge_raw(forge, &ctx->urids.urid_midi_event_type, sizeof(int));
-        lv2_atom_forge_raw(forge, midi1Bytes, midiEventSize);
-        lv2_atom_forge_pad(forge, midiEventSize);
+        lv2_atom_forge_atom(forge, midiEventSize, ctx->urids.urid_midi_event_type);
+        lv2_atom_forge_write(forge, midi1Bytes, midiEventSize);
     }
 }
 
