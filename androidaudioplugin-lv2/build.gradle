@@ -7,8 +7,7 @@ plugins {
 android {
     compileSdkVersion 33
     defaultConfig {
-        // FIXME: it is temporarily set to 30.
-        minSdkVersion 30
+        minSdkVersion 29
         targetSdkVersion 33
         versionCode 1
         versionName "$aap_lv2_version"

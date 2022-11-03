@@ -2,7 +2,7 @@
 
 buildscript {
     ext.kotlin_version = '1.7.10'
-    ext.dokka_version = '1.7.10'
+    ext.dokka_version = '1.7.20'
     ext.aap_version = '0.7.4'
     ext.aap_lv2_version = '0.2.4'
     ext.ndk_version = '24.0.8215888'
