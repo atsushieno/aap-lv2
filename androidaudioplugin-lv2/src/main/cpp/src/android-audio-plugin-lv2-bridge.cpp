@@ -359,10 +359,10 @@ void resetPorts(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *buffer, bo
         auto aapPluginExt = (aap_host_plugin_info_extension_t*) ctx->aap_host->get_extension_data(ctx->aap_host, AAP_PLUGIN_INFO_EXTENSION_URI);
         assert(aapPluginExt);
         auto aapPluginInfo = aapPluginExt->get(ctx->aap_host, ctx->aap_plugin_id.c_str());
-        for (int i = 0; i < aapPluginInfo.get_port_count(aapPluginInfo.context); i++) {
-            auto portInfo = aapPluginInfo.get_port(aapPluginInfo.context, i);
-            if (portInfo.content_type(portInfo.context) == AAP_CONTENT_TYPE_MIDI2) {
-                if (portInfo.direction(portInfo.context) == AAP_PORT_DIRECTION_INPUT)
+        for (int i = 0; i < aapPluginInfo.get_port_count(&aapPluginInfo); i++) {
+            auto portInfo = aapPluginInfo.get_port(&aapPluginInfo, i);
+            if (portInfo.content_type(&portInfo) == AAP_CONTENT_TYPE_MIDI2) {
+                if (portInfo.direction(&portInfo) == AAP_PORT_DIRECTION_INPUT)
                     ctx->mappings.aap_midi_in_port = i;
                 else
                     ctx->mappings.aap_midi_out_port = i;
