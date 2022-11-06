@@ -401,7 +401,7 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
 
     aap::a_log_f(AAP_LOG_LEVEL_INFO, AAP_LV2_TAG, "Plugin %s is valid, ready to instantiate.", pluginUniqueID);
 
-    auto ctx = new AAPLV2PluginContext(statics, world, plugin, pluginUniqueID, sampleRate);
+    auto ctx = new AAPLV2PluginContext(host, statics, world, plugin, pluginUniqueID, sampleRate);
 
     ctx->features.urid_map_feature_data.handle = ctx;
     ctx->features.urid_map_feature_data.map = map_uri;

@@ -15,6 +15,7 @@
 #include <aap/ext/aap-midi2.h>
 #include <aap/ext/presets.h>
 #include <aap/ext/state.h>
+#include <aap/ext/plugin-info.h>
 
 #include "symap.h"
 #include "zix/sem.h"
@@ -170,9 +171,9 @@ public:
 
 class AAPLV2PluginContext {
 public:
-    AAPLV2PluginContext(AAPLV2PluginContextStatics *statics, LilvWorld *world,
+    AAPLV2PluginContext(AndroidAudioPluginHost* host, AAPLV2PluginContextStatics *statics, LilvWorld *world,
                         const LilvPlugin *plugin, const char* pluginUniqueId, int32_t sampleRate)
-            : statics(statics), world(world), plugin(plugin), aap_plugin_id(pluginUniqueId), sample_rate(sampleRate) {
+            : aap_host(host), statics(statics), world(world), plugin(plugin), aap_plugin_id(pluginUniqueId), sample_rate(sampleRate) {
         symap = symap_new();
         // They don't have default assignment...
         worker.threaded = false;
@@ -193,6 +194,7 @@ public:
     }
 
     int32_t instance_state{AAP_LV2_INSTANCE_STATE_INITIAL};
+    AndroidAudioPluginHost* aap_host;
     AAPLV2PluginContextStatics *statics;
     AAPLv2PluginFeatures features;
     AAPLV2URIDs urids;
@@ -312,7 +314,10 @@ void resetMidiAtomBuffers(AAPLV2PluginContext* ctx, AndroidAudioPluginBuffer* bu
                 ctx->explicit_port_buffer_sizes.find(p.first) == ctx->explicit_port_buffer_sizes.end() ?
                 buffer->num_frames * sizeof(float) :
                 ctx->explicit_port_buffer_sizes[p.first];
-        p.second->atom.size = bufferSize - sizeof(LV2_Atom);
+        auto *forge = &ctx->midi_forges_in[p.first];
+        lv2_atom_forge_set_buffer(forge, (uint8_t *) p.second, bufferSize);
+        // FIXME: do we need this? Feels unnecessary
+        //p.second->atom.size = bufferSize - sizeof(LV2_Atom);
     }
 }
 
@@ -344,9 +349,18 @@ void resetPorts(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *buffer, bo
 
     if (allocationPermitted) { // it can go into time-consuming allocation and port node lookup.
 
-        // FIXME: retrieve aap::PluginInformation equivalents and assign
-        ctx->mappings.aap_midi_in_port = -1;
-        ctx->mappings.aap_midi_out_port = -1;
+        auto aapPluginExt = (aap_host_plugin_info_extension_t*) ctx->aap_host->get_extension_data(ctx->aap_host, AAP_PLUGIN_INFO_EXTENSION_URI);
+        assert(aapPluginExt);
+        auto aapPluginInfo = aapPluginExt->get(ctx->aap_host, ctx->aap_plugin_id.c_str());
+        for (int i = 0; i < aapPluginInfo.get_port_count(aapPluginInfo.context); i++) {
+            auto portInfo = aapPluginInfo.get_port(aapPluginInfo.context, i);
+            if (portInfo.content_type(portInfo.context) == AAP_CONTENT_TYPE_MIDI2) {
+                if (portInfo.direction(portInfo.context) == AAP_PORT_DIRECTION_INPUT)
+                    ctx->mappings.aap_midi_in_port = i;
+                else
+                    ctx->mappings.aap_midi_out_port = i;
+            }
+        }
 
         if (!ctx->dummy_raw_buffer)
             ctx->dummy_raw_buffer = calloc(buffer->num_frames * sizeof(float), 1);
@@ -667,17 +681,10 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
     // FIXME: this part has to become like, iterate over AAP midi2 in port inputs, not by midi_atom_inputs.
     // convert AAP MIDI/MIDI2 messages into Atom Sequence of MidiEvent.
     for (auto p : ctx->midi_atom_inputs) {
-        int32_t aapPort = ctx->mappings.lv2_to_aap_portmap[p.first];
-        void *src = buffer->buffers[ctx->mappings.aap_midi_in_port];
+        int32_t aapPort = ctx->mappings.aap_midi_in_port;
+        void *src = buffer->buffers[aapPort];
         auto forge = &ctx->midi_forges_in[p.first];
-        // Port buffer size may be specified by ResizePort::minimumSize (minimum is not necessarily the size, but one thing that needs to check).
-        size_t bufSize = ctx->explicit_port_buffer_sizes.find(p.first) == ctx->explicit_port_buffer_sizes.end() ?
-                         buffer->num_frames * sizeof(float) :
-                         ctx->explicit_port_buffer_sizes[p.first];
-        lv2_atom_forge_set_buffer(forge, (uint8_t *) p.second, bufSize);
         LV2_Atom_Forge_Frame frame;
-        lv2_atom_sequence_clear(p.second);
-
         auto seqRef = lv2_atom_forge_sequence_head(forge, &frame, ctx->urids.urid_time_frame);
         auto seq = (LV2_Atom_Sequence *) lv2_atom_forge_deref(forge, seqRef);
         lv2_atom_forge_pop(forge, &frame);
