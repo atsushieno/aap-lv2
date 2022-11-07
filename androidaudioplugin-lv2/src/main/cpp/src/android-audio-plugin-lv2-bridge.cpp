@@ -41,7 +41,6 @@
 #include "cmidi2.h"
 
 #define AAP_LV2_LOG_PERF 0
-#define AAP_TO_ATOM_CONVERSION_BUFFER_SIZE 0x80000 // 524288
 
 #define AAP_LV2_TAG "aap-lv2"
 
@@ -571,6 +570,7 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, AndroidAudioP
 
         auto targetUmpGroup = cmidi2_ump_get_group(ump);
         if (prevGroup != targetUmpGroup) {
+            prevGroup = targetUmpGroup;
             atomMidiIn = portmap.find(targetUmpGroup) == portmap.end() ?
                     -1 : ctx->mappings.ump_group_to_atom_in_port[targetUmpGroup];
             midiForge = atomMidiIn < 0 ? nullptr : &ctx->midi_forges_in[atomMidiIn];
