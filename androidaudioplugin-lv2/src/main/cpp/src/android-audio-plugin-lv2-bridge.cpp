@@ -324,6 +324,7 @@ void resetMidiAtomBuffers(AAPLV2PluginContext* ctx, AndroidAudioPluginBuffer* bu
         LV2_Atom_Forge_Frame frame;
         auto seqRef = lv2_atom_forge_sequence_head(forge, &frame, ctx->urids.urid_time_frame);
         auto seq = (LV2_Atom_Sequence *) lv2_atom_forge_deref(forge, seqRef);
+        lv2_atom_sequence_clear(seq);
         lv2_atom_forge_pop(forge, &frame);
     }
 }
@@ -356,7 +357,8 @@ void resetPorts(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *buffer, bo
 
     if (allocationPermitted) { // it can go into time-consuming allocation and port node lookup.
 
-        auto aapPluginExt = (aap_host_plugin_info_extension_t*) ctx->aap_host->get_extension_data(ctx->aap_host, AAP_PLUGIN_INFO_EXTENSION_URI);
+        auto aapPluginExt = (aap_host_plugin_info_extension_t *) ctx->aap_host->get_extension_data(
+                ctx->aap_host, AAP_PLUGIN_INFO_EXTENSION_URI);
         assert(aapPluginExt);
         auto aapPluginInfo = aapPluginExt->get(ctx->aap_host, ctx->aap_plugin_id.c_str());
         for (int i = 0; i < aapPluginInfo.get_port_count(&aapPluginInfo); i++) {
@@ -383,7 +385,7 @@ void resetPorts(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *buffer, bo
         // (3) ^
         if (ctx->control_buffer_pointers)
             free(ctx->control_buffer_pointers);
-        ctx->control_buffer_pointers = static_cast<float*>(calloc(numPorts, sizeof(float)));
+        ctx->control_buffer_pointers = static_cast<float *>(calloc(numPorts, sizeof(float)));
 
         int32_t numLV2MidiInPorts = 0;
         int32_t numLV2MidiOutPorts = 0;
@@ -392,33 +394,41 @@ void resetPorts(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *buffer, bo
             const LilvPort *lilvPort = lilv_plugin_get_port_by_index(lilvPlugin, i);
 
             // Try to get rsz:minimumSize. If it exists, we have to allocate sufficient buffer.
-            LilvNode* minimumSizeNode = lilv_port_get(lilvPlugin, lilvPort, ctx->statics->resize_port_minimum_size_node);
+            LilvNode *minimumSizeNode = lilv_port_get(lilvPlugin, lilvPort,
+                                                      ctx->statics->resize_port_minimum_size_node);
             auto rszMinimumSize = minimumSizeNode ? (size_t) lilv_node_as_int(minimumSizeNode) : 0;
             if (minimumSizeNode)
                 ctx->explicit_port_buffer_sizes[i] = rszMinimumSize;
 
             if (IS_ATOM_PORT(ctx, lilvPlugin, lilvPort)) {
-                auto bufferSize = minimumSizeNode ? ctx->explicit_port_buffer_sizes[i] : ctx->atom_buffer_size;
+                auto bufferSize = minimumSizeNode ? ctx->explicit_port_buffer_sizes[i]
+                                                  : ctx->atom_buffer_size;
 
                 // (2) ^
                 if (IS_INPUT_PORT(ctx, lilvPlugin, lilvPort)) {
-                    if (lilv_port_supports_event(lilvPlugin, lilvPort, ctx->statics->midi_event_uri_node)) {
+                    if (lilv_port_supports_event(lilvPlugin, lilvPort,
+                                                 ctx->statics->midi_event_uri_node)) {
                         ctx->mappings.ump_group_to_atom_in_port[numLV2MidiInPorts++] = i;
-                        ctx->midi_atom_inputs[i] = static_cast<LV2_Atom_Sequence*>(calloc(bufferSize, 1));
+                        ctx->midi_atom_inputs[i] = static_cast<LV2_Atom_Sequence *>(calloc(
+                                bufferSize, 1));
                     } else {
                         // it may be unused in AAP, but we have to allocate a buffer for such an Atom port anyways.
                         ctx->explicitly_allocated_port_buffers[i] = calloc(bufferSize, 1);
-                        if (lilv_port_supports_event(lilvPlugin, lilvPort, ctx->statics->patch_patch_uri_node))
+                        if (lilv_port_supports_event(lilvPlugin, lilvPort,
+                                                     ctx->statics->patch_patch_uri_node))
                             ctx->mappings.lv2_patch_in_port = i;
                     }
                 } else {
-                    if (lilv_port_supports_event(lilvPlugin, lilvPort, ctx->statics->midi_event_uri_node)) {
+                    if (lilv_port_supports_event(lilvPlugin, lilvPort,
+                                                 ctx->statics->midi_event_uri_node)) {
                         ctx->mappings.atom_out_port_to_ump_group[i] = numLV2MidiOutPorts++;
-                        ctx->midi_atom_outputs[i] = static_cast<LV2_Atom_Sequence*>(calloc(bufferSize, 1));
+                        ctx->midi_atom_outputs[i] = static_cast<LV2_Atom_Sequence *>(calloc(
+                                bufferSize, 1));
                     } else {
                         // it may be unused in AAP, but we have to allocate a buffer for such an Atom port anyways.
                         ctx->explicitly_allocated_port_buffers[i] = calloc(bufferSize, 1);
-                        if (lilv_port_supports_event(lilvPlugin, lilvPort, ctx->statics->patch_patch_uri_node))
+                        if (lilv_port_supports_event(lilvPlugin, lilvPort,
+                                                     ctx->statics->patch_patch_uri_node))
                             ctx->mappings.lv2_patch_out_port = i;
                     }
                 }
@@ -438,15 +448,21 @@ void resetPorts(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *buffer, bo
                 currentAAPPortIndex++;
             }
         }
-
-        auto uridMap = &ctx->features.urid_map_feature_data;
-        for (auto p : ctx->midi_atom_inputs)
-            lv2_atom_forge_init(&ctx->midi_forges_in[p.first], uridMap);
-        for (auto p : ctx->midi_atom_outputs)
-            lv2_atom_forge_init(&ctx->midi_forges_in[p.first], uridMap);
-        lv2_atom_forge_init(&ctx->patch_forge_in, uridMap);
-        lv2_atom_forge_init(&ctx->patch_forge_out, uridMap);
     }
+}
+
+void clearBufferForRun(AAPLV2PluginContext* ctx, AndroidAudioPluginBuffer *buffer) {
+    auto lilvPlugin = ctx->plugin;
+    auto instance = ctx->instance;
+    uint32_t numPorts = lilv_plugin_get_num_ports(lilvPlugin);
+
+    auto uridMap = &ctx->features.urid_map_feature_data;
+    for (auto p : ctx->midi_atom_inputs)
+        lv2_atom_forge_init(&ctx->midi_forges_in[p.first], uridMap);
+    for (auto p : ctx->midi_atom_outputs)
+        lv2_atom_forge_init(&ctx->midi_forges_in[p.first], uridMap);
+    lv2_atom_forge_init(&ctx->patch_forge_in, uridMap);
+    lv2_atom_forge_init(&ctx->patch_forge_out, uridMap);
 
     for (int p = 0; p < numPorts; p++) {
         auto epbIter = ctx->explicitly_allocated_port_buffers.find(p);
@@ -494,6 +510,7 @@ void aap_lv2_plugin_prepare(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer
     }
 
     resetPorts(plugin, buffer, true);
+    clearBufferForRun(ctx, buffer);
 
     ctx->instance_state = AAP_LV2_INSTANCE_STATE_PREPARED;
 
@@ -557,7 +574,7 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, AndroidAudioP
             atomMidiIn = portmap.find(targetUmpGroup) == portmap.end() ?
                     -1 : ctx->mappings.ump_group_to_atom_in_port[targetUmpGroup];
             midiForge = atomMidiIn < 0 ? nullptr : &ctx->midi_forges_in[atomMidiIn];
-            midiSeq = ctx->midi_atom_inputs[atomMidiIn];
+            midiSeq = atomMidiIn < 0 ? nullptr : ctx->midi_atom_inputs[atomMidiIn];
         }
 
         auto messageType = cmidi2_ump_get_message_type(ump);
@@ -736,6 +753,7 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
 
     if (buffer != ctx->cached_buffer)
         resetPorts(plugin, buffer, false);
+    clearBufferForRun(ctx, buffer);
 
     /* Process any worker replies. */
     jalv_worker_emit_responses(&ctx->state_worker, ctx->instance);
@@ -777,6 +795,7 @@ void aap_lv2_plugin_deactivate(AndroidAudioPlugin *plugin) {
         return;
     if (ctx->instance_state == AAP_LV2_INSTANCE_STATE_ACTIVE) {
         lilv_instance_deactivate(ctx->instance);
+        ctx->cached_buffer = nullptr;
         ctx->instance_state = AAP_LV2_INSTANCE_STATE_PREPARED;
     } else {
         aap::a_log_f(AAP_LOG_LEVEL_ERROR, AAP_LV2_TAG, "LV2 plugin %s is not at prepared state.",
