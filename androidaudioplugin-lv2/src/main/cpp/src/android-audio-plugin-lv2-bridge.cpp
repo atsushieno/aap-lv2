@@ -539,6 +539,7 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, AndroidAudioP
     //   we have to store them separately.
     // - There may not be a Patch Atom sequence, then it may be ControlPort.
     //   In that case, there may be no Atom output.
+    // - There may be no Atom sequence at all, when it is an effect plugin and has only ControlPorts.
     // - There may be more than one MIDI Atom sequences. We differentiate the destination
     //   (input to LV2) by UMP "group".
 
@@ -687,12 +688,9 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, AndroidAudioP
             break;
         }
 
-        /* TODO: figure out why Android Studio C++ code analyzer is buggy and fails to treat any following code after this block as reachable.
-        if (!midiForge) {
-            aap::a_log_f(AAP_LOG_LEVEL_ERROR, AAP_LV2_TAG, "LV2 Atom MIDI input port %d is not assigned a valid LV2 Atom Forge.", atomMidiIn);
-            return false;
-        }
-        */
+        if (!midiForge)
+            // No MIDI Atom port, nowhere to write MIDI messages.
+            return true;
 
         lv2_atom_forge_frame_time(midiForge, (double) currentJRTimestamp / JR_TIMESTAMP_TICKS_PER_SECOND * ctx->sample_rate);
         lv2_atom_forge_atom(midiForge, midiEventSize, ctx->urids.urid_midi_event_type);
