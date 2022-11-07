@@ -165,7 +165,7 @@ public:
     std::map<int32_t,int32_t> aap_to_lv2_portmap{};
     std::map<int32_t,int32_t> lv2_to_aap_portmap{};
     std::map<uint32_t,int32_t> lv2_index_to_port{};
-    std::map<int32_t,int32_t> atom_in_port_to_ump_group{};
+    std::map<int32_t,int32_t> ump_group_to_atom_in_port{};
     std::map<int32_t,int32_t> atom_out_port_to_ump_group{};
     int32_t lv2_patch_in_port{-1};
     int32_t lv2_patch_out_port{-1};
@@ -403,7 +403,7 @@ void resetPorts(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *buffer, bo
                 // (2) ^
                 if (IS_INPUT_PORT(ctx, lilvPlugin, lilvPort)) {
                     if (lilv_port_supports_event(lilvPlugin, lilvPort, ctx->statics->midi_event_uri_node)) {
-                        ctx->mappings.atom_out_port_to_ump_group[i] = numLV2MidiInPorts++;
+                        ctx->mappings.ump_group_to_atom_in_port[numLV2MidiInPorts++] = i;
                         ctx->midi_atom_inputs[i] = static_cast<LV2_Atom_Sequence*>(calloc(bufferSize, 1));
                     } else {
                         // it may be unused in AAP, but we have to allocate a buffer for such an Atom port anyways.
@@ -515,24 +515,49 @@ void aap_lv2_plugin_activate(AndroidAudioPlugin *plugin) {
     }
 }
 
-void
-write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, uint32_t targetUmpGroup, LV2_Atom_Forge *forge, void *src) {
-    assert(src != nullptr);
-    assert(forge != nullptr);
+bool
+write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, AndroidAudioPluginBuffer *buffer) {
+
+    int32_t aapInPort = ctx->mappings.aap_midi_in_port;
+    void *src = buffer->buffers[aapInPort];
+
+    if (src == nullptr) {
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, AAP_LV2_TAG, "AAP input port %d is not assigned a valid buffer.", aapInPort);
+        return false;
+    }
 
     volatile auto aapmb = (AAPMidiBufferHeader*) src;
     uint64_t currentJRTimestamp = 0; // unit of 1/31250 sec. (JR_TIMESTAMP_TICKS_PER_SECOND)
 
     uint8_t midi1Bytes[16];
 
+    // We deal with both MIDI and Patch (parameter changes) from the unified UMP sequence, while
+    // this function has to deal with multiple use-cases, in particular:
+    // - The Patch Atom sequence and the MIDI Atom sequence might be the only one, then
+    //   they have to be unified, ordered by the event timestamp.
+    // - The Patch Atom sequence and the MIDI Atom sequence might be different, then
+    //   we have to store them separately.
+    // - There may not be a Patch Atom sequence, then it may be ControlPort.
+    //   In that case, there may be no Atom output.
+    // - There may be more than one MIDI Atom sequences. We differentiate the destination
+    //   (input to LV2) by UMP "group".
+
+    int32_t prevGroup{-1};
+    int32_t atomMidiIn{-1};
+    LV2_Atom_Forge *midiForge{nullptr};
+    LV2_Atom_Sequence *midiSeq{nullptr};
+    auto &portmap = ctx->mappings.ump_group_to_atom_in_port;
+
     CMIDI2_UMP_SEQUENCE_FOREACH((uint8_t*) src + sizeof(AAPMidiBufferHeader), aapmb->length, iter) {
         auto ump = (cmidi2_ump*) iter;
 
-        if (cmidi2_ump_get_group(ump) != targetUmpGroup)
-            continue;
-
-        uint32_t midiEventSize = 3;
-        uint64_t sysex7, sysex8_1, sysex8_2;
+        auto targetUmpGroup = cmidi2_ump_get_group(ump);
+        if (prevGroup != targetUmpGroup) {
+            atomMidiIn = portmap.find(targetUmpGroup) == portmap.end() ?
+                    -1 : ctx->mappings.ump_group_to_atom_in_port[targetUmpGroup];
+            midiForge = atomMidiIn < 0 ? nullptr : &ctx->midi_forges_in[atomMidiIn];
+            midiSeq = ctx->midi_atom_inputs[atomMidiIn];
+        }
 
         auto messageType = cmidi2_ump_get_message_type(ump);
         auto statusCode = cmidi2_ump_get_status_code(ump); // may not apply, but won't break.
@@ -550,7 +575,34 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, uint32_t targ
             continue;
         }
 
-        lv2_atom_forge_frame_time(forge, (double) currentJRTimestamp / JR_TIMESTAMP_TICKS_PER_SECOND * ctx->sample_rate);
+        if (messageType == CMIDI2_MESSAGE_TYPE_MIDI_2_CHANNEL && statusCode == CMIDI2_STATUS_NRPN) {
+            // Parameter changes.
+            // They are used either for Atom Sequence or ControlPort.
+            auto paramId = cmidi2_ump_get_midi2_nrpn_msb(ump) * 0x80 + cmidi2_ump_get_midi2_nrpn_lsb(ump);
+            auto paramValueU32 = cmidi2_ump_get_midi2_nrpn_data(ump);
+            float paramValueF32 = *(float *) (uint32_t *) &paramValueU32;
+            if (ctx->mappings.lv2_patch_in_port >= 0) {
+                // write Patch to the Atom port
+                auto patchForge = &ctx->patch_forge_in;
+
+                // FIXME: implement patch object output
+                //assert(false);
+
+                void* ptr = ctx->explicitly_allocated_port_buffers[ctx->mappings.lv2_patch_in_port];
+                ((LV2_Atom_Sequence*) ptr)->atom.size = patchForge->offset - sizeof(LV2_Atom);
+            } else {
+                // set ControlPort value.
+                uint32_t portIndex = ctx->mappings.lv2_index_to_port[paramId];
+                ctx->control_buffer_pointers[portIndex] = paramValueF32;
+            }
+
+            continue;
+        }
+
+        // Otherwise - MIDI message. Downconvert from UMP to bytestream.
+
+        uint32_t midiEventSize = 3;
+        uint64_t sysex7;
 
         midi1Bytes[0] = statusCode | cmidi2_ump_get_channel(ump);
 
@@ -580,24 +632,6 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, uint32_t targ
             break;
         case CMIDI2_MESSAGE_TYPE_MIDI_2_CHANNEL:
             switch (statusCode) {
-                case CMIDI2_STATUS_NRPN: {
-                        // Parameter changes.
-                        // They are used either for Atom Sequence or ControlPort.
-                        auto paramId = cmidi2_ump_get_midi2_nrpn_msb(ump) * 0x80 +
-                                           cmidi2_ump_get_midi2_nrpn_lsb(ump);
-                        auto paramValueU32 = cmidi2_ump_get_midi2_nrpn_data(ump);
-                        float paramValueF32 = *(float*) (uint32_t*) &paramValueU32;
-                        if (ctx->mappings.lv2_patch_in_port >= 0) {
-                            // write Patch to the Atom port
-                            //FIXME: implement
-                            assert(false);
-                        } else {
-                            // set ControlPort value.
-                            uint32_t portIndex = ctx->mappings.lv2_index_to_port[paramId];
-                            ctx->control_buffer_pointers[portIndex] = paramValueF32;
-                        }
-                    }
-                    break;
                 case CMIDI2_STATUS_NOTE_OFF:
                 case CMIDI2_STATUS_NOTE_ON:
                     midiEventSize = 3;
@@ -650,32 +684,34 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, uint32_t targ
                 midi1Bytes[i] = cmidi2_ump_get_byte_from_uint64(sysex7, 2 + i);
             break;
         case CMIDI2_MESSAGE_TYPE_SYSEX8_MDS:
-            // Note that sysex8 num_bytes contains streamId, which is NOT part of MIDI 1.0 sysex7.
-            midiEventSize = 1 + cmidi2_ump_get_sysex8_num_bytes(ump) - 1;
-            sysex8_1 = cmidi2_ump_read_uint64_bytes(ump);
-            sysex8_2 = cmidi2_ump_read_uint64_bytes(ump);
-            for (int i = 0; i < 5 && i < midiEventSize - 1; i++)
-                midi1Bytes[i] = cmidi2_ump_get_byte_from_uint64(sysex8_1, 3 + i);
-            for (int i = 6; i < midiEventSize - 1; i++)
-                midi1Bytes[i] = cmidi2_ump_get_byte_from_uint64(sysex8_2, i);
-            // verify 7bit compatibility and then SYSEX8 to SYSEX7
-            for (int i = 1; i < midiEventSize; i++) {
-                if (midi1Bytes[i] > 0x80) {
-                    midiEventSize = 0;
-                    break;
-                }
-            }
             break;
         }
 
-        lv2_atom_forge_atom(forge, midiEventSize, ctx->urids.urid_midi_event_type);
-        lv2_atom_forge_write(forge, midi1Bytes, midiEventSize);
+        /* TODO: figure out why Android Studio C++ code analyzer is buggy and fails to treat any following code after this block as reachable.
+        if (!midiForge) {
+            aap::a_log_f(AAP_LOG_LEVEL_ERROR, AAP_LV2_TAG, "LV2 Atom MIDI input port %d is not assigned a valid LV2 Atom Forge.", atomMidiIn);
+            return false;
+        }
+        */
+
+        lv2_atom_forge_frame_time(midiForge, (double) currentJRTimestamp / JR_TIMESTAMP_TICKS_PER_SECOND * ctx->sample_rate);
+        lv2_atom_forge_atom(midiForge, midiEventSize, ctx->urids.urid_midi_event_type);
+        lv2_atom_forge_write(midiForge, midi1Bytes, midiEventSize);
+
+        midiSeq->atom.size = midiForge->offset - sizeof(LV2_Atom);
     }
+
+    return true;
 }
 
-void
-read_forge_events_as_midi2_events(AAPLV2PluginContext* ctx, int32_t targetUmpGroup, LV2_Atom_Forge *forge, void* dst) {
+bool
+read_forge_events_as_midi2_events(AAPLV2PluginContext* ctx, AndroidAudioPluginBuffer* buffer) {
+    int32_t aapOutPort = ctx->mappings.aap_midi_out_port;
+    void *dst = buffer->buffers[aapOutPort];
+
     // FIXME: implement
+
+    return true;
 }
 
 void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
@@ -711,32 +747,11 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
     if (ctx->worker.iface && ctx->worker.iface->end_run)
         ctx->worker.iface->end_run(ctx->instance->lv2_handle);
 
-
     // Convert AAP MIDI/MIDI2 messages into Atom Sequence of MidiEvent.
     // Here, we iterate over UMPs multiple times, which would look inefficient, but in practice
     // there would be only one MIDI port, and there would not be many MIDI in messages.
-    int32_t aapInPort = ctx->mappings.aap_midi_in_port;
-    void *src = buffer->buffers[aapInPort];
-    bool patchOverlappedIn = false;
-    for (auto p : ctx->midi_atom_inputs) {
-        auto forge = &ctx->midi_forges_in[p.first];
-        patchOverlappedIn |= p.first == ctx->mappings.lv2_patch_in_port;
-        auto targetUmpGroup = ctx->mappings.atom_in_port_to_ump_group[p.first];
-        write_midi2_events_as_midi1_to_lv2_forge(ctx, targetUmpGroup, forge, src);
-        p.second->atom.size = forge->offset - sizeof(LV2_Atom);
-    }
-    if (!patchOverlappedIn) {
-        // At this state, there may or may not be an Atom patch port. If it's not there, that means
-        //  the AAP MIDI2 port conveys parameter changes to ControlPorts instead.
-        // In that case, do process messages, but skip processing Atom patch sequence.
-        auto forge = &ctx->patch_forge_in;
-        // Here we assume that the Patch port is at most one, and assume that the gropu is 0...
-        write_midi2_events_as_midi1_to_lv2_forge(ctx, 0, forge, src);
-        // A patch port may not exist.
-        void* ptr = ctx->explicitly_allocated_port_buffers[ctx->mappings.lv2_patch_in_port];
-        if (ptr)
-            ((LV2_Atom_Sequence*) ptr)->atom.size = forge->offset - sizeof(LV2_Atom);
-    }
+    if (!write_midi2_events_as_midi1_to_lv2_forge(ctx, buffer))
+        return;
 
 #if AAP_LV2_LOG_PERF
     clock_gettime(CLOCK_REALTIME, &timeSpecEnd);
@@ -746,23 +761,8 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
 
     lilv_instance_run(ctx->instance, buffer->num_frames);
 
-    int32_t aapOutPort = ctx->mappings.aap_midi_out_port;
-    void *dst = buffer->buffers[aapOutPort];
-    bool patchOverlappedOut = false;
-    for (auto p : ctx->midi_atom_outputs) {
-        auto forge = &ctx->midi_forges_out[p.first];
-        patchOverlappedOut |= p.first == ctx->mappings.lv2_patch_out_port;
-        auto targetUmpGroup = ctx->mappings.atom_out_port_to_ump_group[p.first];
-        read_forge_events_as_midi2_events(ctx, targetUmpGroup, forge, dst);
-    }
-    if (!patchOverlappedOut) {
-        // At this state, there may or may not be an Atom patch port. If it's not there, that means
-        //  the AAP MIDI2 port conveys parameter changes to ControlPorts instead.
-        // In that case, do process messages, but skip processing Atom patch sequence.
-        auto forge = &ctx->patch_forge_out;
-        // Here we assume that the Patch port is at most one, and assume that the gropu is 0...
-        read_forge_events_as_midi2_events(ctx, 0, forge, src);
-    }
+    if (!read_forge_events_as_midi2_events(ctx, buffer))
+        return;
 
 #if AAP_LV2_LOG_PERF
     clock_gettime(CLOCK_REALTIME, &timeSpecEnd);
