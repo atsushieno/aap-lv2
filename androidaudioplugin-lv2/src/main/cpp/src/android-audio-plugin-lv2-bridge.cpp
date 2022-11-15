@@ -13,6 +13,7 @@
 #include <aap/unstable/logging.h>
 #include <aap/android-audio-plugin.h>
 #include <aap/ext/aap-midi2.h>
+#include <aap/ext/parameters.h>
 #include <aap/ext/presets.h>
 #include <aap/ext/state.h>
 #include <aap/ext/plugin-info.h>
@@ -531,6 +532,13 @@ void aap_lv2_plugin_activate(AndroidAudioPlugin *plugin) {
     }
 }
 
+bool readMidi2Parameter(uint8_t *group, uint8_t* channel, uint8_t* key, uint8_t* extra,
+                        uint16_t *index, float *value, cmidi2_ump* ump) {
+    auto raw = (uint32_t*) ump;
+    return aapReadMidi2ParameterSysex8(group, channel, key, extra, index, value,
+                                       *raw, *(raw + 1), *(raw + 2), *(raw + 3));
+}
+
 bool
 write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, AndroidAudioPluginBuffer *buffer) {
 
@@ -593,11 +601,14 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, AndroidAudioP
             continue;
         }
 
-        if (messageType == CMIDI2_MESSAGE_TYPE_MIDI_2_CHANNEL && statusCode == CMIDI2_STATUS_NRPN) {
+        uint8_t paramGroup, paramChannel, paramKey{0}, paramExtra{0};
+        uint16_t paramId;
+        float paramValue;
+
+        if (readMidi2Parameter(&paramGroup, &paramChannel, &paramKey, &paramExtra, &paramId, &paramValue, ump)) {
             // Parameter changes.
             // They are used either for Atom Sequence or ControlPort.
-            auto paramId = cmidi2_ump_get_midi2_nrpn_msb(ump) * 0x80 + cmidi2_ump_get_midi2_nrpn_lsb(ump);
-            auto paramValueU32 = cmidi2_ump_get_midi2_nrpn_data(ump);
+            auto paramValueU32 = *(uint32_t*) &paramValue;
             float paramValueF32 = *(float *) (uint32_t *) &paramValueU32;
             if (ctx->mappings.lv2_patch_in_port >= 0) {
                 // write Patch to the Atom port
@@ -650,6 +661,10 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, AndroidAudioP
             break;
         case CMIDI2_MESSAGE_TYPE_MIDI_2_CHANNEL:
             switch (statusCode) {
+                case CMIDI2_STATUS_RPN:
+                case CMIDI2_STATUS_NRPN:
+                    // FIXME: implement
+                    continue;
                 case CMIDI2_STATUS_NOTE_OFF:
                 case CMIDI2_STATUS_NOTE_ON:
                     midiEventSize = 3;
