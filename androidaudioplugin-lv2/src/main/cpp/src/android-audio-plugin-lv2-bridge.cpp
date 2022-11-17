@@ -353,7 +353,7 @@ void resetPorts(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *buffer, bo
 
     assert(buffer != nullptr);
 
-    uint32_t numPorts = lilv_plugin_get_num_ports(lilvPlugin);
+    uint32_t numLV2Ports = lilv_plugin_get_num_ports(lilvPlugin);
 
     if (allocationPermitted) { // it can go into time-consuming allocation and port node lookup.
 
@@ -385,12 +385,13 @@ void resetPorts(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *buffer, bo
         // (3) ^
         if (ctx->control_buffer_pointers)
             free(ctx->control_buffer_pointers);
-        ctx->control_buffer_pointers = static_cast<float *>(calloc(numPorts, sizeof(float)));
+        ctx->control_buffer_pointers = static_cast<float *>(calloc(numLV2Ports, sizeof(float)));
 
         int32_t numLV2MidiInPorts = 0;
         int32_t numLV2MidiOutPorts = 0;
         int32_t currentAAPPortIndex = 0;
-        for (int i = 0; i < numPorts; i++) {
+        for (int i = 0; i < numLV2Ports; i++) {
+            ctx->mappings.lv2_to_aap_portmap[i] = -1;
             const LilvPort *lilvPort = lilv_plugin_get_port_by_index(lilvPlugin, i);
 
             // Try to get rsz:minimumSize. If it exists, we have to allocate sufficient buffer.
@@ -443,6 +444,12 @@ void resetPorts(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *buffer, bo
                 ctx->mappings.lv2_index_to_port[lilv_port_get_index(lilvPlugin, lilvPort)] = i;
             } else {
                 // (4) ^
+                while (currentAAPPortIndex < buffer->num_buffers) {
+                    auto portInfo = aapPluginInfo.get_port(&aapPluginInfo, currentAAPPortIndex);
+                    if (portInfo.content_type(&portInfo) == AAP_CONTENT_TYPE_AUDIO)
+                        break;
+                    currentAAPPortIndex++;
+                }
                 ctx->mappings.aap_to_lv2_portmap[currentAAPPortIndex] = i;
                 ctx->mappings.lv2_to_aap_portmap[i] = currentAAPPortIndex;
                 currentAAPPortIndex++;
@@ -454,7 +461,7 @@ void resetPorts(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *buffer, bo
 void clearBufferForRun(AAPLV2PluginContext* ctx, AndroidAudioPluginBuffer *buffer) {
     auto lilvPlugin = ctx->plugin;
     auto instance = ctx->instance;
-    uint32_t numPorts = lilv_plugin_get_num_ports(lilvPlugin);
+    uint32_t numLV2Ports = lilv_plugin_get_num_ports(lilvPlugin);
 
     auto uridMap = &ctx->features.urid_map_feature_data;
     for (auto p : ctx->midi_atom_inputs)
@@ -464,7 +471,7 @@ void clearBufferForRun(AAPLV2PluginContext* ctx, AndroidAudioPluginBuffer *buffe
     lv2_atom_forge_init(&ctx->patch_forge_in, uridMap);
     lv2_atom_forge_init(&ctx->patch_forge_out, uridMap);
 
-    for (int p = 0; p < numPorts; p++) {
+    for (int p = 0; p < numLV2Ports; p++) {
         auto epbIter = ctx->explicitly_allocated_port_buffers.find(p);
         if (epbIter != ctx->explicitly_allocated_port_buffers.end()) {
             lilv_instance_connect_port(instance, p, epbIter->second);
@@ -489,7 +496,8 @@ void clearBufferForRun(AAPLV2PluginContext* ctx, AndroidAudioPluginBuffer *buffe
 
         // otherwise, it is either an audio port or CV port or whatever.
         int32_t aapPortIndex = ctx->mappings.lv2_to_aap_portmap[p];
-        lilv_instance_connect_port(instance, p, buffer->buffers[aapPortIndex]);
+        if (aapPortIndex >= 0)
+            lilv_instance_connect_port(instance, p, buffer->buffers[aapPortIndex]);
     }
 
     // Clean up Atom output sequences.
@@ -569,7 +577,9 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, AndroidAudioP
 
     int32_t prevGroup{-1};
     int32_t atomMidiIn{-1};
-    LV2_Atom_Forge *midiForge{nullptr};
+    // I want to initialize it with nullptr, but clang analyzer in Android Studio is somehow stupid
+    // and treats as if it were always nullptr (flow analysis wise, it is always initialized to some value).
+    LV2_Atom_Forge *midiForge;
     LV2_Atom_Sequence *midiSeq{nullptr};
     auto &portmap = ctx->mappings.ump_group_to_atom_in_port;
 
