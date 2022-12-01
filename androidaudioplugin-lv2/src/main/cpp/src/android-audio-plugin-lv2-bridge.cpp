@@ -74,6 +74,7 @@ public:
         control_port_uri_node = lilv_new_uri(world, LV2_CORE__ControlPort);
         input_port_uri_node = lilv_new_uri(world, LV2_CORE__InputPort);
         output_port_uri_node = lilv_new_uri(world, LV2_CORE__OutputPort);
+        default_uri_node = lilv_new_uri(world, LV2_CORE__default);
         atom_port_uri_node = lilv_new_uri(world, LV2_ATOM__AtomPort);
         midi_event_uri_node = lilv_new_uri (world, LV2_MIDI__MidiEvent);
         patch_patch_uri_node = lilv_new_uri (world, LV2_PATCH__Patch);
@@ -99,6 +100,7 @@ public:
 
     LilvNode *audio_port_uri_node, *control_port_uri_node, *atom_port_uri_node,
              *input_port_uri_node, *output_port_uri_node,
+             *default_uri_node,
              *midi_event_uri_node, *patch_patch_uri_node,
              *resize_port_minimum_size_node, *presets_preset_node,
              *work_interface_uri_node, *rdfs_label_node;
@@ -373,6 +375,7 @@ void allocatePortBuffers(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *b
     // (2) We allocate memory locally for every LV2 Atom port, for both inputs and outputs.
     // (3) For control ports, they point to an element in `control_buffer_pointers`.
     //     They may receive parameter changes via AAP MIDI2 Assignable Controllers.
+    //     They also have to be assigned default control values.
     // (4) For other ports, we assign audio pointer from `buffer` as they do not likely move at `process()`,
     //     and IF they indeed moved (we store `cached_buffer`), then we can call `connect_port()` at any time.
 
@@ -387,6 +390,12 @@ void allocatePortBuffers(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *b
     for (int i = 0; i < numLV2Ports; i++) {
         ctx->mappings.lv2_to_aap_portmap[i] = -1;
         const LilvPort *lilvPort = lilv_plugin_get_port_by_index(lilvPlugin, i);
+
+        if (IS_CONTROL_IN(ctx, lilvPlugin, lilvPort)) {
+            auto defaultNode = lilv_port_get(lilvPlugin, lilvPort, ctx->statics->default_uri_node);
+            if (defaultNode)
+                ctx->control_buffer_pointers[i] = lilv_node_as_float(defaultNode);
+        }
 
         // Try to get rsz:minimumSize. If it exists, we have to allocate sufficient buffer.
         LilvNode *minimumSizeNode = lilv_port_get(lilvPlugin, lilvPort,
