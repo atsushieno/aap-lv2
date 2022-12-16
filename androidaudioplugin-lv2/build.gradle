@@ -10,7 +10,7 @@ android {
         minSdkVersion 29
         targetSdkVersion 33
         versionCode 1
-        versionName "$aap_lv2_version"
+        versionName libs.versions.aap.lv2.get()
 
         externalNativeBuild {
             cmake {
@@ -20,7 +20,7 @@ android {
         }
     }
     // See android-audio-plugin-framework/java/androidaudioplugin/build.gradle to find out why it is required...
-    ndkVersion "$ndk_version"
+    ndkVersion libs.versions.ndk.get()
 
     buildTypes {
         debug {
@@ -76,9 +76,10 @@ afterEvaluate {
 }
 
 dependencies {
-    implementation "org.androidaudioplugin:androidaudioplugin:$aap_version"
-    implementation 'androidx.core:core-ktx:1.9.0'
-    testImplementation 'junit:junit:4.13.2'
-    androidTestImplementation 'androidx.test.ext:junit:1.1.3'
-    androidTestImplementation 'androidx.test.espresso:espresso-core:3.4.0'
+    implementation (libs.aap.core)
+    implementation (libs.androidx.core.ktx)
+
+    testImplementation (libs.junit)
+    androidTestImplementation (libs.test.ext.junit)
+    androidTestImplementation (libs.test.espresso.core)
 }

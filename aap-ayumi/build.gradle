@@ -12,7 +12,7 @@ android {
         minSdkVersion 29
         targetSdkVersion 33
         versionCode 1
-        versionName "$aap_lv2_version"
+        versionName libs.versions.aap.lv2.get()
 
         externalNativeBuild {
             cmake {
@@ -24,7 +24,7 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    ndkVersion "$ndk_version"
+    ndkVersion libs.versions.ndk.get()
 
     buildTypes {
         debug {
@@ -57,15 +57,16 @@ android {
 
 dependencies {
     implementation project(':androidaudioplugin-lv2')
-    implementation "org.androidaudioplugin:androidaudioplugin:$aap_version"
-    implementation "org.androidaudioplugin:androidaudioplugin-ui-compose:$aap_version"
-    implementation "org.androidaudioplugin:androidaudioplugin-midi-device-service:$aap_version"
-    implementation 'com.google.android.material:material:1.7.0'
+    implementation (libs.aap.core)
+    implementation (libs.aap.ui.compose)
+    implementation (libs.aap.midi.device.service)
+    implementation (libs.material)
 
-    testImplementation 'junit:junit:4.13.2'
-    androidTestImplementation "org.androidaudioplugin:androidaudioplugin-testing:$aap_version"
-    androidTestImplementation 'androidx.test:rules:1.4.0'
-    androidTestImplementation 'androidx.test.ext:junit:1.1.3'
+    testImplementation (libs.junit)
+    implementation (libs.aap.testing)
+    androidTestImplementation (libs.test.rules)
+    androidTestImplementation (libs.test.ext.junit)
+    androidTestImplementation (libs.test.espresso.core)
 }
 
 // Starting AGP 7.0.0-alpha05, AGP stopped caring build dependencies and it broke builds.
