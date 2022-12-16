@@ -3,9 +3,9 @@
 buildscript {
     ext.kotlin_version = '1.7.10'
     ext.dokka_version = '1.7.20'
-    ext.aap_version = '0.7.4'
-    ext.aap_lv2_version = '0.2.4'
-    ext.ndk_version = '24.0.8215888'
+    ext.aap_version = '0.7.5-pre'
+    ext.aap_lv2_version = '0.2.5-pre'
+    ext.ndk_version = '25.1.8937393'
     ext.compose_version = '1.3.0'
     ext.enable_asan = false
 

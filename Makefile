@@ -15,7 +15,11 @@ build-non-app: \
 
 build-aap-core:
 	if [ ! -f external/android-audio-plugin-framework/local.properties ] ; then \
-		echo "sdk.dir=$(HOME)/Android/Sdk" > external/android-audio-plugin-framework/local.properties ; \
+		if [ `uname` == "Darwin" ] ; then \
+			echo "sdk.dir=$(HOME)/Library/Android/sdk" > external/android-audio-plugin-framework/local.properties ; \
+		else \
+			echo "sdk.dir=$(HOME)/Android/Sdk" > external/android-audio-plugin-framework/local.properties ; \
+		fi ; \
 	fi
 	cd external/android-audio-plugin-framework && ./gradlew publishToMavenLocal
 
@@ -25,6 +29,13 @@ build-lv2-importer:
 	cd tools/aap-import-lv2-metadata && rm -rf build && mkdir -p build && cd build && cmake -DCMAKE_BUILD_TYPE=Debug .. && make
 
 build-java:
+	if [ ! -f local.properties ] ; then \
+		if [ `uname` == "Darwin" ] ; then \
+			echo "sdk.dir=$(HOME)/Library/Android/sdk" > local.properties ; \
+		else \
+			echo "sdk.dir=$(HOME)/Android/Sdk" > local.properties ; \
+		fi ; \
+	fi
 	ANDROID_SDK_ROOT=$(ANDROID_SDK_ROOT) ./gradlew build publishToMavenLocal
  
 build-java-core:
