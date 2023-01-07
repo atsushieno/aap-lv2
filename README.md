@@ -1,6 +1,6 @@
 # AAP-LV2: LV2 backend and ports to AAP
 
-This repository contains LV2 backend (or wrapper, or whatever) support for [android-audio-plugin-framework](https://github.com/atsushieno/android-audio-plugin-framework), as well as minimum samples.
+This repository contains LV2 backend (or wrapper, or whatever) support for [Audio Plugins For Android](https://github.com/atsushieno/aap-core), as well as minimum samples.
 
 There are also dedicated repos for non-trivial LV2 plugin ports and so on (not everything works as expected):
 

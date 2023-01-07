@@ -14,14 +14,14 @@ build-non-app: \
 	build-java-core
 
 build-aap-core:
-	if [ ! -f external/android-audio-plugin-framework/local.properties ] ; then \
+	if [ ! -f external/aap-core/local.properties ] ; then \
 		if [ `uname` == "Darwin" ] ; then \
-			echo "sdk.dir=$(HOME)/Library/Android/sdk" > external/android-audio-plugin-framework/local.properties ; \
+			echo "sdk.dir=$(HOME)/Library/Android/sdk" > external/aap-core/local.properties ; \
 		else \
-			echo "sdk.dir=$(HOME)/Android/Sdk" > external/android-audio-plugin-framework/local.properties ; \
+			echo "sdk.dir=$(HOME)/Android/Sdk" > external/aap-core/local.properties ; \
 		fi ; \
 	fi
-	cd external/android-audio-plugin-framework && ./gradlew publishToMavenLocal
+	cd external/aap-core && ./gradlew publishToMavenLocal
 
 ## Build utility
 

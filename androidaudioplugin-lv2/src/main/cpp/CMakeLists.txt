@@ -7,8 +7,8 @@ cmake_minimum_required(VERSION 3.18)
 project(androidaudioplugin-lv2 VERSION 0.1 LANGUAGES C CXX)
 
 set(DEPBASE ../../../../external)
-#get_filename_component (AAPDIR "${DEPBASE}/android-audio-plugin-framework" ABSOLUTE)
-set(AAPDIR ${DEPBASE}/android-audio-plugin-framework)
+#get_filename_component (AAPDIR "${DEPBASE}/aap-core" ABSOLUTE)
+set(AAPDIR ${DEPBASE}/aap-core)
 
 if (ANDROID)
 if (NOT (BUILD_WITH_PREFAB))

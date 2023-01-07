@@ -19,7 +19,7 @@ android {
             }
         }
     }
-    // See android-audio-plugin-framework/java/androidaudioplugin/build.gradle to find out why it is required...
+    // See aap-core/androidaudioplugin/build.gradle.kts to find out why it is required...
     ndkVersion libs.versions.ndk.get()
 
     buildTypes {
@@ -62,7 +62,7 @@ afterEvaluate {
     publishing {
         publications {
             // Applies the component for the release build variant.
-            // FIXME: release build doesn't work. See https://github.com/atsushieno/android-audio-plugin-framework/issues/68 for details.
+            // FIXME: release build doesn't work. See https://github.com/atsushieno/aap-core/issues/68 for details.
             release(MavenPublication) {
                 version = android.defaultConfig.versionName
                 from components.release
