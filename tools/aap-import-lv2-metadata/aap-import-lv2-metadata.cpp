@@ -21,6 +21,7 @@
 #include "lv2/core/lv2.h"
 #include "lv2/atom/atom.h"
 #include "lv2/midi/midi.h"
+#include "lv2/presets/presets.h"
 
 #define RDF__A LILV_NS_RDF "type"
 
@@ -39,7 +40,8 @@ LilvNode
 	*output_port_uri_node,
 	*port_property_uri_node,
 	*toggled_uri_node,
-	*integer_uri_node;
+	*integer_uri_node,
+	*presets_uri_node;
 
 
 #define PORTCHECKER_SINGLE(_name_,_type_) inline bool _name_ (const LilvPlugin* plugin, const LilvPort* port) { return lilv_port_is_a (plugin, port, _type_); }
@@ -91,6 +93,7 @@ int main(int argc, const char **argv)
 	port_property_uri_node = lilv_new_uri (world, LV2_CORE__portProperty);
 	toggled_uri_node = lilv_new_uri (world, LV2_CORE__toggled);
 	integer_uri_node = lilv_new_uri (world, LV2_CORE__integer);
+	presets_uri_node = lilv_new_uri(world, LV2_PRESETS__Preset);
 
 	char* lv2realpath = realpath(lv2dirName, NULL);
 	fprintf(stderr, "LV2 directory: %s\n", lv2realpath);
@@ -178,6 +181,13 @@ int main(int argc, const char **argv)
 			escape_xml(lilv_node_as_uri(lilv_plugin_get_uri(plugin))),
 			escape_xml(plugin_lv2dir)
 			);
+
+		LilvNodes* presets = lilv_plugin_get_related(plugin, presets_uri_node);
+		if (lilv_nodes_size(presets) > 0) {
+			fprintf(xmlFP, "    <extensions>\n");
+			fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/presets/v1' />\n");
+			fprintf(xmlFP, "    </extensions>\n");
+		}
 
 		fprintf(xmlFP, "    <parameters xmlns='urn://androidaudioplugin.org/extensions/parameters'>\n");
 		for (uint32_t p = 0; p < lilv_plugin_get_num_ports(plugin); p++) {
