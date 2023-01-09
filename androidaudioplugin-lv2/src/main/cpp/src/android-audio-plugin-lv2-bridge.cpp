@@ -469,7 +469,7 @@ void clearBufferForRun(AAPLV2PluginContext* ctx, AndroidAudioPluginBuffer *buffe
     for (auto p : ctx->midi_atom_inputs)
         lv2_atom_forge_init(&ctx->midi_forges_in[p.first], uridMap);
     for (auto p : ctx->midi_atom_outputs)
-        lv2_atom_forge_init(&ctx->midi_forges_in[p.first], uridMap);
+        lv2_atom_forge_init(&ctx->midi_forges_out[p.first], uridMap);
     lv2_atom_forge_init(&ctx->patch_forge_in, uridMap);
     lv2_atom_forge_init(&ctx->patch_forge_out, uridMap);
 
