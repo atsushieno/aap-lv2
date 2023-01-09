@@ -17,7 +17,6 @@
 #include <serd/serd.h>
 #include <sord/sord.h>
 #include <lilv/lilv.h>
-/* FIXME: this is super hacky */
 #include "lv2/core/lv2.h"
 #include "lv2/atom/atom.h"
 #include "lv2/midi/midi.h"
@@ -213,7 +212,7 @@ int main(int argc, const char **argv)
 			max[0] = 0;
 			type[0] = 0;
 			if (isToggled) {
-				std::snprintf(type, 1024, "type=\"%s\"", "toggled");
+				std::snprintf(type, 1024, "type=\"%s\"", "boolean");
 				if (defNode != nullptr) std::snprintf(def, 1024, "default=\"%s\"", lilv_node_as_float(defNode) > 0.0 ? "1" : "0");
 			} else if (isInteger) {
 				std::snprintf(type, 1024, "type=\"%s\"", "integer");
@@ -244,6 +243,12 @@ int main(int argc, const char **argv)
 				}
 				fprintf(xmlFP, "      </parameter>\n");
 				lilv_scale_points_free(scalePoints);
+			} else if (isToggled) {
+				// kind of hacky way to support boolean...
+				fprintf(xmlFP, ">\n");
+				fprintf(xmlFP, "        <enumeration label=\"true\" value=\"1\" />\n");
+				fprintf(xmlFP, "        <enumeration label=\"false\" value=\"0\" />\n");
+				fprintf(xmlFP, "      </parameter>\n");
 			}
 			else
 			    fprintf(xmlFP, " />\n");
