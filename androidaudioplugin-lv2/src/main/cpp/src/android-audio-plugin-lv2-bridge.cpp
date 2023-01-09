@@ -77,7 +77,7 @@ public:
         default_uri_node = lilv_new_uri(world, LV2_CORE__default);
         atom_port_uri_node = lilv_new_uri(world, LV2_ATOM__AtomPort);
         midi_event_uri_node = lilv_new_uri (world, LV2_MIDI__MidiEvent);
-        patch_patch_uri_node = lilv_new_uri (world, LV2_PATCH__Patch);
+        patch_message_uri_node = lilv_new_uri (world, LV2_PATCH__Message);
         work_interface_uri_node = lilv_new_uri(world, LV2_WORKER__interface);
         resize_port_minimum_size_node = lilv_new_uri(world, LV2_RESIZE_PORT__minimumSize);
         presets_preset_node = lilv_new_uri(world, LV2_PRESETS__Preset);
@@ -91,7 +91,7 @@ public:
         lilv_node_free(input_port_uri_node);
         lilv_node_free(output_port_uri_node);
         lilv_node_free(midi_event_uri_node);
-        lilv_node_free(patch_patch_uri_node);
+        lilv_node_free(patch_message_uri_node);
         lilv_node_free(work_interface_uri_node);
         lilv_node_free(resize_port_minimum_size_node);
         lilv_node_free(presets_preset_node);
@@ -101,7 +101,7 @@ public:
     LilvNode *audio_port_uri_node, *control_port_uri_node, *atom_port_uri_node,
              *input_port_uri_node, *output_port_uri_node,
              *default_uri_node,
-             *midi_event_uri_node, *patch_patch_uri_node,
+             *midi_event_uri_node, *patch_message_uri_node,
              *resize_port_minimum_size_node, *presets_preset_node,
              *work_interface_uri_node, *rdfs_label_node;
 };
@@ -310,7 +310,7 @@ PORTCHECKER_AND (IS_ATOM_IN, IS_ATOM_PORT, IS_INPUT_PORT)
 PORTCHECKER_AND (IS_ATOM_OUT, IS_ATOM_PORT, IS_OUTPUT_PORT)
 
 
-void resetMidiAtomBuffers(AAPLV2PluginContext* ctx, AndroidAudioPluginBuffer* buffer, std::map<int32_t, LV2_Atom_Sequence*> &map) {
+void resetMidiAtomBuffers(AAPLV2PluginContext* ctx, AndroidAudioPluginBuffer* buffer, std::map<int32_t, LV2_Atom_Sequence*> &map, bool isInput) {
     for (auto p : map) {
         lv2_atom_sequence_clear(p.second);
         // it seems we have to keep those sequences clean and assign appropriate sizes.
@@ -318,7 +318,7 @@ void resetMidiAtomBuffers(AAPLV2PluginContext* ctx, AndroidAudioPluginBuffer* bu
                 ctx->explicit_port_buffer_sizes.find(p.first) == ctx->explicit_port_buffer_sizes.end() ?
                 buffer->num_frames * sizeof(float) :
                 ctx->explicit_port_buffer_sizes[p.first];
-        auto *forge = &ctx->midi_forges_in[p.first];
+        auto *forge = isInput ? &ctx->midi_forges_in[p.first] : &ctx->midi_forges_out[p.first];
         lv2_atom_forge_set_buffer(forge, (uint8_t *) p.second, bufferSize);
         // FIXME: do we need this? Feels unnecessary
         //p.second->atom.size = bufferSize - sizeof(LV2_Atom);
@@ -334,7 +334,10 @@ void resetMidiAtomBuffers(AAPLV2PluginContext* ctx, AndroidAudioPluginBuffer* bu
 void resetPatchAtomBuffer(AAPLV2PluginContext* ctx, AndroidAudioPluginBuffer* buffer, int32_t port) {
     if (port < 0)
         return;
-    auto seq = static_cast<LV2_Atom_Sequence*>(buffer->buffers[ctx->mappings.lv2_to_aap_portmap[port]]);
+    auto buf = ctx->explicitly_allocated_port_buffers[port];
+    if (!buf)
+        buf = buffer->buffers[ctx->mappings.lv2_to_aap_portmap[port]];
+    auto seq = static_cast<LV2_Atom_Sequence*>(buf);
     lv2_atom_sequence_clear(seq);
     // it seems we have to keep those sequences clean and assign appropriate sizes.
     auto bufferSize =
@@ -419,7 +422,7 @@ void allocatePortBuffers(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *b
                     // it may be unused in AAP, but we have to allocate a buffer for such an Atom port anyways.
                     ctx->explicitly_allocated_port_buffers[i] = calloc(bufferSize, 1);
                     if (lilv_port_supports_event(lilvPlugin, lilvPort,
-                                                 ctx->statics->patch_patch_uri_node))
+                                                 ctx->statics->patch_message_uri_node))
                         ctx->mappings.lv2_patch_in_port = i;
                 }
             } else {
@@ -432,7 +435,7 @@ void allocatePortBuffers(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *b
                     // it may be unused in AAP, but we have to allocate a buffer for such an Atom port anyways.
                     ctx->explicitly_allocated_port_buffers[i] = calloc(bufferSize, 1);
                     if (lilv_port_supports_event(lilvPlugin, lilvPort,
-                                                 ctx->statics->patch_patch_uri_node))
+                                                 ctx->statics->patch_message_uri_node))
                         ctx->mappings.lv2_patch_out_port = i;
                 }
             }
@@ -506,8 +509,8 @@ void clearBufferForRun(AAPLV2PluginContext* ctx, AndroidAudioPluginBuffer *buffe
     }
 
     // Clean up Atom output sequences.
-    resetMidiAtomBuffers(ctx, buffer, ctx->midi_atom_inputs);
-    resetMidiAtomBuffers(ctx, buffer, ctx->midi_atom_outputs);
+    resetMidiAtomBuffers(ctx, buffer, ctx->midi_atom_inputs, true);
+    resetMidiAtomBuffers(ctx, buffer, ctx->midi_atom_outputs, false);
     resetPatchAtomBuffer(ctx, buffer, ctx->mappings.lv2_patch_in_port);
     resetPatchAtomBuffer(ctx, buffer, ctx->mappings.lv2_patch_out_port);
 }
