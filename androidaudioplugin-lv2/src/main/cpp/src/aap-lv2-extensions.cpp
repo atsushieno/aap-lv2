@@ -14,6 +14,10 @@
 #include <aap/ext/presets.h>
 #include <aap/ext/state.h>
 
+#include "aap-lv2-internal.h"
+
+namespace aaplv2bridge {
+
 // imported from jalv_internal.h
 typedef int (*PresetSink)(Jalv*           jalv,
                           const LilvNode* node,
@@ -311,20 +315,17 @@ void aap_lv2_set_preset_index(AndroidAudioPluginExtensionTarget target, int32_t 
     auto ctx = ((AAPLV2PluginContext *) target.plugin->plugin_specific);
     aap_lv2_ensure_preset_loaded(ctx);
     ctx->selected_preset_index = index;
+
+    for (auto& p : ctx->presets) {
+        if (p->index == index) {
+            auto state = lilv_state_new_from_string(ctx->world,
+                                                    &ctx->features.urid_map_feature_data,
+                                                    (const char *) p->data);
+            lilv_state_restore(state, ctx->instance, aap_lv2_set_port_value, ctx, 0, ctx->stateFeaturesList().get());
+            break;
+        }
+    }
 }
-
-
-// AAP extensions
-
-size_t aap_lv2_get_state_size(AndroidAudioPluginExtensionTarget target);
-void aap_lv2_get_state(AndroidAudioPluginExtensionTarget target, aap_state_t *input);
-void aap_lv2_set_state(AndroidAudioPluginExtensionTarget target, aap_state_t *input);
-
-int32_t aap_lv2_get_preset_count(AndroidAudioPluginExtensionTarget target);
-int32_t aap_lv2_get_preset_data_size(AndroidAudioPluginExtensionTarget target, int32_t index);
-void aap_lv2_get_preset(AndroidAudioPluginExtensionTarget target, int32_t index, bool skipBinary, aap_preset_t* destination);
-int32_t aap_lv2_get_preset_index(AndroidAudioPluginExtensionTarget target);
-void aap_lv2_set_preset_index(AndroidAudioPluginExtensionTarget target, int32_t index);
 
 aap_state_extension_t state_ext{aap_lv2_get_state_size,
                                 aap_lv2_get_state,
@@ -531,4 +532,6 @@ void aap_lv2_plugin_delete(
     lilv_world_free(l->world);
     delete l;
     delete plugin;
+}
+
 }
