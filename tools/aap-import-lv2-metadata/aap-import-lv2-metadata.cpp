@@ -147,8 +147,7 @@ int main(int argc, const char **argv)
 	char **pluginLv2Dirs = (char **) calloc(sizeof(char*) * numPlugins + 1, 1);
 	int numPluginDirEntries = 0;
 
-	for (auto i = lilv_plugins_begin(plugins); !lilv_plugins_is_end(plugins, i); i = lilv_plugins_next(plugins, i)) {
-		
+	LILV_FOREACH(plugins, i, plugins) {		
 		const LilvPlugin *plugin = lilv_plugins_get(plugins, i);
 		const char *name = lilv_node_as_string(lilv_plugin_get_name(plugin));
 		const LilvNode *author = lilv_plugin_get_author_name(plugin);
