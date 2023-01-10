@@ -204,16 +204,26 @@ void aap_lv2_set_port_value(
         const char* port_symbol, void* user_data, const void* value, uint32_t size, uint32_t type)
 {
     auto l = (AAPLV2PluginContext *) user_data;
+    assert(l->instance_state != AAP_LV2_INSTANCE_STATE_INITIAL); // must be at prepared or later.
+
     auto uri = lilv_new_string(l->world, port_symbol);
     auto port = lilv_plugin_get_port_by_symbol(l->plugin, uri);
+    auto lv2Port = lilv_port_get_index(l->plugin, port);
+    if (lv2Port >= 0) {
+        auto aapPort = l->mappings.lv2_to_aap_portmap[(int32_t) lv2Port];
+        if (aapPort >= 0) {
+            auto data = l->cached_buffer->buffers[aapPort];
+            memcpy(data, value, size);
+        } else {
+            // it is hopefully a float ControlPort...
+            // also note: https://github.com/atsushieno/aap-lv2/issues/7
+            auto data = l->control_buffer_pointers + lv2Port;
+            memcpy(data, value, size);
+        }
+    }
+    else
+        aap::a_log_f(AAP_LOG_LEVEL_WARN, AAP_LV2_TAG, "State contains invalid LV2 port specifier: %s", lilv_node_as_uri(uri));
     lilv_node_free(uri);
-    int index = lilv_port_get_index(l->plugin, port);
-
-    // FIXME: preserve buffer in context, and retrieve from there.
-    auto data = l->cached_buffer->buffers[index];
-
-    // should there be any type check?
-    memcpy(data, value, size);
 }
 
 size_t aap_lv2_get_state_size(AndroidAudioPluginExtensionTarget target) {
@@ -267,7 +277,7 @@ int32_t aap_lv2_on_preset_loaded(Jalv* jalv, const LilvNode* node, const LilvNod
     auto uridMap = &jalv->features.urid_map_feature_data;
     auto uridUnmap = &jalv->features.urid_unmap_feature_data;
     auto state = lilv_state_new_from_world(jalv->world, uridMap, node);
-    auto stateData = lilv_state_to_string(jalv->world, uridMap, uridUnmap, state, name, nullptr);
+    auto stateData = lilv_state_to_string(jalv->world, uridMap, uridUnmap, state, lilv_node_as_string(node), nullptr);
 
     aap_preset_t preset;
     preset.index = (int32_t) jalv->presets.size();
