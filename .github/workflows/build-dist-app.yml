@@ -1,0 +1,86 @@
+name: build dist
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  linux-build:
+    name: build on linux
+    runs-on: ubuntu-20.04
+    steps:
+    - name: checkout
+      uses: actions/checkout@v1
+      with:
+        submodules: recursive
+    - name: cache AVD
+      uses: actions/cache@v3
+      env:
+        cache-name: cache-avd
+      with:
+        path: /home/runner/.android/gradle/avd
+        key: ${{ runner.os }}-gradle-avd
+    - name: cache gradle caches
+      uses: actions/cache@v3
+      env:
+        cache-name: cache-gradle-caches
+      with:
+        path: /home/runner/.gradle/caches/
+        key: ${{ runner.os }}-gradle-caches
+    - name: apt update
+      run: |
+        sudo apt-get update
+    - name: workaround for Actions inability to build AGP 7.0-alpha based projects https://github.com/actions/virtual-environments/pull/2229
+      run: echo "yes" | $ANDROID_HOME/tools/bin/sdkmanager "cmake;3.18.1" --channel=3
+    - name: set up JDK 11
+      uses: actions/setup-java@v3
+      with:
+        java-version: 11
+        distribution: temurin
+    - name: apt install
+      run: |
+        echo y | sudo apt-get install doxygen libgrpc++-dev libgrpc-dev libprotobuf-dev graphviz cmake ninja-build liblilv-dev
+    - name: build
+      run: make
+    - name: upload artifact
+      if: success()
+      uses: actions/upload-artifact@v3
+      with:
+        name: debug-apk
+        path: ./app/build/outputs/apk/debug/*.apk
+  
+  osx-build:
+    name: build on osx
+    runs-on: macos-12
+    if: false
+    steps:
+    - name: checkout
+      uses: actions/checkout@v1
+      with:
+        submodules: recursive
+    - name: cache AVD
+      uses: actions/cache@v3
+      env:
+        cache-name: cache-avd
+      with:
+        path: /Users/runner/.android/gradle/avd
+        key: ${{ runner.os }}-gradle-avd
+    - name: cache gradle caches
+      uses: actions/cache@v3
+      env:
+        cache-name: cache-gradle-caches
+      with:
+        path: /Users/runner/.gradle/caches/
+        key: ${{ runner.os }}-gradle-caches
+    - name: set up JDK 11
+      uses: actions/setup-java@v3
+      with:
+        java-version: 11
+        distribution: temurin
+    - name: install deps
+      run: |
+        brew install cmake doxygen ninja graphviz lilv
+    - name: build
+      run: make
+      env:
+        ANDROID_SDK_ROOT: /Users/runner/Library/Android/sdk
