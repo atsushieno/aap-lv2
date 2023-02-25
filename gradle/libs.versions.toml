@@ -1,6 +1,6 @@
 [versions]
 
-aap-core = "0.7.5"
+aap-core = "0.7.6-pre"
 aap-lv2 = "0.2.5"
 
 agp = "7.3.1"

@@ -192,7 +192,7 @@ const void* aap_lv2_get_port_value(
     int index = lilv_port_get_index(l->plugin, port);
 
     // FIXME: preserve buffer in context, and retrieve from there.
-    auto data = l->cached_buffer->buffers[index];
+    auto data = l->cached_buffer->get_buffer(*l->cached_buffer, index);
 
     // FIXME: implement correctly
     *size = sizeof(float);
@@ -212,7 +212,7 @@ void aap_lv2_set_port_value(
     if (lv2Port >= 0) {
         auto aapPort = l->mappings.lv2_to_aap_portmap[(int32_t) lv2Port];
         if (aapPort >= 0) {
-            auto data = l->cached_buffer->buffers[aapPort];
+            auto data = l->cached_buffer->get_buffer(*l->cached_buffer, aapPort);
             memcpy(data, value, size);
         } else {
             // it is hopefully a float ControlPort...

@@ -27,19 +27,13 @@ class AudioPluginLV2ServiceExtension : AudioPluginService.Extension
         val isFile = svcInfo.metaData?.getBoolean(LV2_RESOURCE_FROM_FILE, false)
         val dataAbsDir = context.applicationContext.filesDir.canonicalPath
         if (isFile == true) {
-            var lv2Paths = AudioPluginHostHelper.getLocalAudioPluginService(context).plugins
-                .filter { p -> p.backend == "LV2" }
-                .map { p -> if (p.assets != null) File(p.assets!!).parent.toString() else "" }
-                .distinct().toTypedArray()
-            var lv2pathStr = lv2Paths.joinToString(":") {
-                    s -> if (s.startsWith('/')) "$dataAbsDir$s" else "$dataAbsDir/$s" }
+            val lv2pathStr = "$dataAbsDir/lv2"
             initialize(lv2pathStr, null)
         } else {
-            var lv2Paths = AudioPluginHostHelper.getLocalAudioPluginService(context).plugins
-                .filter { p -> p.backend == "LV2" }
-                .map { p -> if (p.assets != null) p.assets!! else "" }
-                .distinct().toTypedArray()
-            initialize(lv2Paths.joinToString(":"), context.assets)
+            val lv2 = context.assets.list("lv2")
+            val paths = lv2?.map { "/lv2/$it/" }?.toTypedArray() ?: arrayOf()
+            val lv2Paths = paths.joinToString(":")
+            initialize(lv2Paths, context.assets)
         }
     }
 
