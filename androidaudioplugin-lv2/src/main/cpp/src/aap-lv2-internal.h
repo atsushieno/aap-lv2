@@ -312,7 +312,8 @@ void aap_lv2_plugin_activate(AndroidAudioPlugin *plugin);
 
 void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
                             aap_buffer_t *buffer,
-                            long timeoutInNanoseconds);
+                            int32_t frameCount,
+                            int64_t timeoutInNanoseconds);
 
 void aap_lv2_plugin_deactivate(AndroidAudioPlugin *plugin);
 

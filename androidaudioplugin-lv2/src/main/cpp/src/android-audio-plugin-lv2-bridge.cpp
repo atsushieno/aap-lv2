@@ -484,7 +484,8 @@ read_forge_events_as_midi2_events(AAPLV2PluginContext* ctx, aap_buffer_t * buffe
 
 void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
                             aap_buffer_t *buffer,
-                            long timeoutInNanoseconds) {
+                            int32_t frameCount,
+                            int64_t timeoutInNanoseconds) {
     // FIXME: use timeoutInNanoseconds?
 
     auto ctx = (AAPLV2PluginContext *) plugin->plugin_specific;
@@ -526,7 +527,12 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
     aap::a_log_f(AAP_LOG_LEVEL_DEBUG, "aap-lv2.perf", "aap_lv2_plugin_process perf. time diff %ld nsec.", timeDiffRP);
 #endif
 
-    lilv_instance_run(ctx->instance, buffer->num_frames(*buffer));
+    auto numFramesInBuffer = buffer->num_frames(*buffer);
+    if (numFramesInBuffer < frameCount) {
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, AAP_LV2_TAG, "frameCount passed to process() function is larger than num_frames() in aap_buffer_t.");
+        frameCount = numFramesInBuffer;
+    }
+    lilv_instance_run(ctx->instance, frameCount);
 
     if (!read_forge_events_as_midi2_events(ctx, buffer))
         return;
