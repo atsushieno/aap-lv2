@@ -492,7 +492,7 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
         return;
     if (ctx->instance_state == AAP_LV2_INSTANCE_STATE_TERMINATING)
         return;
-    if (!ctx->instance_state == AAP_LV2_INSTANCE_STATE_ACTIVE) {
+    if (ctx->instance_state != AAP_LV2_INSTANCE_STATE_ACTIVE) {
         aap::a_log_f(AAP_LOG_LEVEL_ERROR, AAP_LV2_TAG, "LV2 plugin %s is not at prepared state.", ctx->aap_plugin_id.c_str());
         ctx->instance_state = AAP_LV2_INSTANCE_STATE_ERROR;
         return;
