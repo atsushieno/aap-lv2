@@ -215,7 +215,7 @@ public:
     std::string aap_plugin_id{};
     int32_t sample_rate;
 
-    AndroidAudioPluginBuffer *cached_buffer{nullptr};
+    aap_buffer_t *cached_buffer{nullptr};
 
     void *dummy_raw_buffer{nullptr};
 
@@ -306,13 +306,14 @@ int32_t aap_lv2_get_preset_index(AndroidAudioPluginExtensionTarget target);
 
 void aap_lv2_set_preset_index(AndroidAudioPluginExtensionTarget target, int32_t index);
 
-void aap_lv2_plugin_prepare(AndroidAudioPlugin *plugin, AndroidAudioPluginBuffer *buffer);
+void aap_lv2_plugin_prepare(AndroidAudioPlugin *plugin, aap_buffer_t *buffer);
 
 void aap_lv2_plugin_activate(AndroidAudioPlugin *plugin);
 
 void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
-                            AndroidAudioPluginBuffer *buffer,
-                            long timeoutInNanoseconds);
+                            aap_buffer_t *buffer,
+                            int32_t frameCount,
+                            int64_t timeoutInNanoseconds);
 
 void aap_lv2_plugin_deactivate(AndroidAudioPlugin *plugin);
 
