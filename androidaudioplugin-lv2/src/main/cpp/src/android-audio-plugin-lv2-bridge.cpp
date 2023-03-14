@@ -1,8 +1,10 @@
 
 #include "aap-lv2-internal.h"
+#if ANDROID
+#include <android/trace.h>
+#endif
 
 namespace aaplv2bridge {
-
 
 #define PORTCHECKER_SINGLE(_name_, _type_) inline bool _name_ (AAPLV2PluginContext *ctx, const LilvPlugin* plugin, const LilvPort* port) { return lilv_port_is_a (plugin, port, ctx->statics->_type_); }
 #define PORTCHECKER_AND(_name_, _cond1_, _cond2_) inline bool _name_ (AAPLV2PluginContext *ctx, const LilvPlugin* plugin, const LilvPort* port) { return _cond1_ (ctx, plugin, port) && _cond2_ (ctx, plugin, port); }
@@ -482,6 +484,9 @@ read_forge_events_as_midi2_events(AAPLV2PluginContext* ctx, aap_buffer_t * buffe
     return true;
 }
 
+const char *AAP_LV2_TRACE_SECTION_NAME = "aap::lv2::process";
+const char *AAP_LV2_TRACE_SECTION_RUN_NAME = "aap::lv2::lilv_run";
+
 void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
                             aap_buffer_t *buffer,
                             int32_t frameCount,
@@ -499,11 +504,16 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
         return;
     }
 
-#if AAP_LV2_LOG_PERF
-    struct timespec timeSpecBegin, timeSpecEnd;
-    clock_gettime(CLOCK_REALTIME, &timeSpecBegin);
-    aap::a_log_f(AAP_LOG_LEVEL_DEBUG, "aap-lv2.perf", "timeout: %ld nsec.", timeoutInNanoseconds);
+    struct timespec tsBegin{0, 0}, tsEnd{0, 0};
+    struct timespec tsRunBegin{0, 0}, tsRunEnd{0, 0};
+#if ANDROID
+    if (ATrace_isEnabled()) {
+        ATrace_beginSection(AAP_LV2_TRACE_SECTION_NAME);
+        clock_gettime(CLOCK_REALTIME, &tsBegin);
+    }
 #endif
+
+    // pre-process
 
     clearBufferForRun(ctx, buffer);
 
@@ -521,26 +531,42 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
     if (!write_midi2_events_as_midi1_to_lv2_forge(ctx, buffer))
         return;
 
-#if AAP_LV2_LOG_PERF
-    clock_gettime(CLOCK_REALTIME, &timeSpecEnd);
-    long timeDiffRP = (timeSpecEnd.tv_sec - timeSpecBegin.tv_sec) * 1000000000 + timeSpecEnd.tv_nsec - timeSpecBegin.tv_nsec;
-    aap::a_log_f(AAP_LOG_LEVEL_DEBUG, "aap-lv2.perf", "aap_lv2_plugin_process perf. time diff %ld nsec.", timeDiffRP);
-#endif
-
     auto numFramesInBuffer = buffer->num_frames(*buffer);
     if (numFramesInBuffer < frameCount) {
         aap::a_log_f(AAP_LOG_LEVEL_ERROR, AAP_LV2_TAG, "frameCount passed to process() function is larger than num_frames() in aap_buffer_t.");
         frameCount = numFramesInBuffer;
     }
+
+    // process
+#if ANDROID
+    if (ATrace_isEnabled()) {
+        ATrace_beginSection(AAP_LV2_TRACE_SECTION_RUN_NAME);
+        clock_gettime(CLOCK_REALTIME, &tsRunBegin);
+    }
+#endif
+
     lilv_instance_run(ctx->instance, frameCount);
 
-    if (!read_forge_events_as_midi2_events(ctx, buffer))
-        return;
+#if ANDROID
+    if (ATrace_isEnabled()) {
+        clock_gettime(CLOCK_REALTIME, &tsRunEnd);
+        ATrace_setCounter(AAP_LV2_TRACE_SECTION_RUN_NAME,
+                          (tsRunEnd.tv_sec - tsRunBegin.tv_sec) * 1000000000 + tsRunEnd.tv_nsec - tsRunBegin.tv_nsec);
+        ATrace_endSection();
+    }
+#endif
 
-#if AAP_LV2_LOG_PERF
-    clock_gettime(CLOCK_REALTIME, &timeSpecEnd);
-    long timeDiff = (timeSpecEnd.tv_sec - timeSpecBegin.tv_sec) * 1000000000 + timeSpecEnd.tv_nsec - timeSpecBegin.tv_nsec;
-    aap::a_log_f(AAP_LOG_LEVEL_DEBUG, "aap-lv2.perf", "processing perf. time diff %ld nsec.", timeDiff);
+    // post-process
+
+    read_forge_events_as_midi2_events(ctx, buffer);
+
+#if ANDROID
+    if (ATrace_isEnabled()) {
+        clock_gettime(CLOCK_REALTIME, &tsEnd);
+        ATrace_setCounter(AAP_LV2_TRACE_SECTION_NAME,
+                          (tsEnd.tv_sec - tsBegin.tv_sec) * 1000000000 + tsEnd.tv_nsec - tsBegin.tv_nsec);
+        ATrace_endSection();
+    }
 #endif
 }
 
