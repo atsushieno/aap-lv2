@@ -190,10 +190,11 @@ And note that access to assets is not as simple as that to filesystem. It is imp
 Another thing to note is that we check in `serd_config.h`, `sord_config.h`, `sratom_config.h` and `lilv_config.h` directly in the source tree, which are generated from x86 build of android-native-audio-builders. If they have to be rebuilt (for e.g. updated submodules), rebuild and copy the generated headers again.
 
 
-## Performance testing
+## Profiling audio processing
 
-`android-audio-plugin-lv2-bridge.cpp` has a simple performance measurement aid which can be enabled with `AAP_LV2_LOG_PERF` variable.
+aap-lv2 records traces for aap-lv2 `process()` calls and the actual DSP's  audio processing at `lilv_run()`, using ATrace API. The former is to observe if there is expensive pre-processing and post-processing, and the latter is to see if the DSP itself is performing well.
 
+For more details on AAP tracing, read the [aap-core documentation](https://github.com/atsushieno/aap-core/blob/e9a28aa7f382a0c30b8b378b6809d2effa25e002/docs/DEVELOPERS.md#profiling-audio-processing) (it is a permalink; there may be updated docs).
 
 ## Licensing notice
 
