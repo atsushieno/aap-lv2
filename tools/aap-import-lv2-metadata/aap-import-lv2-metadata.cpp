@@ -170,22 +170,26 @@ int main(int argc, const char **argv)
 		plugin_lv2dir = strdup(plugin_lv2dir);
 		free(bundle_path);
 
-		fprintf(xmlFP, "  <plugin backend=\"LV2\" name=\"%s\" category=\"%s\" author=\"%s\" manufacturer=\"%s\" unique-id=\"lv2:%s\" library=\"libandroidaudioplugin-lv2.so\" entrypoint=\"GetAndroidAudioPluginFactoryLV2Bridge\" assets=\"/lv2/%s/\">\n",
+		fprintf(xmlFP, "  <plugin backend=\"LV2\" name=\"%s\" category=\"%s\" developer=\"%s\" unique-id=\"lv2:%s\" library=\"libandroidaudioplugin-lv2.so\" entrypoint=\"GetAndroidAudioPluginFactoryLV2Bridge\" gui:ui-view-factory=\"org.androidaudioplugin.ui.web.AudioPluginWebViewFactory\" xmlns:gui=\"urn://androidaudioplugin.org/extensions/gui\" >\n",
 			name,
 			/* FIXME: this categorization is super hacky */
 			is_plugin_instrument(plugin) ? "Instrument" : "Effect",
-			author != NULL ? escape_xml(lilv_node_as_string(author)) : "",
-			manufacturer != NULL ? escape_xml(lilv_node_as_string(manufacturer)) : "",
+			author != NULL ? escape_xml(lilv_node_as_string(author)) : manufacturer != NULL ? escape_xml(lilv_node_as_string(manufacturer)) : "",
 			escape_xml(lilv_node_as_uri(lilv_plugin_get_uri(plugin))),
 			escape_xml(plugin_lv2dir)
 			);
 
 		LilvNodes* presets = lilv_plugin_get_related(plugin, presets_uri_node);
+		fprintf(xmlFP, "    <extensions>\n");
+		fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/state/v1' />\n");
 		if (lilv_nodes_size(presets) > 0) {
-			fprintf(xmlFP, "    <extensions>\n");
 			fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/presets/v1' />\n");
-			fprintf(xmlFP, "    </extensions>\n");
 		}
+		fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/parameters/v1' />\n");
+		fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/midi/v1' />\n");
+		// we put default Web UI anyways
+		fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/gui/v1' />\n");
+		fprintf(xmlFP, "    </extensions>\n");
 
 		fprintf(xmlFP, "    <parameters xmlns='urn://androidaudioplugin.org/extensions/parameters'>\n");
 		for (uint32_t p = 0; p < lilv_plugin_get_num_ports(plugin); p++) {
