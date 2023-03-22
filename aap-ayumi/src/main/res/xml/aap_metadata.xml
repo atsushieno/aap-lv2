@@ -1,8 +1,14 @@
-<plugins>  <plugin backend="LV2" name="ayumi-lv2" category="Instrument" author="Atsushi Eno" manufacturer="" unique-id="lv2:https://github.com/atsushieno/ayumi-lv2" library="libandroidaudioplugin-lv2.so" entrypoint="GetAndroidAudioPluginFactoryLV2Bridge" assets="/lv2/ayumi.lv2/">
+<plugins>
+  <plugin backend="LV2" name="ayumi-lv2" category="Instrument" developer="AAP Developers"
+      unique-id="lv2:https://github.com/atsushieno/ayumi-lv2"
+      library="libandroidaudioplugin-lv2.so" entrypoint="GetAndroidAudioPluginFactoryLV2Bridge"
+      gui:ui-view-factory="org.androidaudioplugin.ui.web.AudioPluginWebViewFactory"
+      xmlns:gui="urn://androidaudioplugin.org/extensions/gui">
     <extensions>
         <extension uri="urn://androidaudioplugin.org/extensions/presets/v1" />
         <extension uri="urn://androidaudioplugin.org/extensions/midi2/v1" />
         <extension uri="urn://androidaudioplugin.org/extensions/port-config/v1" />
+        <extension uri="urn://androidaudioplugin.org/extensions/gui/v1" />
     </extensions>
     <ports>
       <port direction="input"  content="midi2" name="Control" />

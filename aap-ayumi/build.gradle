@@ -44,7 +44,7 @@ android {
 
     externalNativeBuild {
         cmake {
-            version "3.18.1"
+            version libs.versions.cmake.get()
             path "src/main/cpp/CMakeLists.txt"
         }
     }
@@ -59,6 +59,7 @@ dependencies {
     implementation project(':androidaudioplugin-lv2')
     implementation (libs.aap.core)
     implementation (libs.aap.ui.compose)
+    implementation (libs.aap.ui.web)
     implementation (libs.aap.midi.device.service)
     implementation (libs.material)
 

@@ -78,7 +78,7 @@ void allocatePortBuffers(AndroidAudioPlugin *plugin, aap_buffer_t *buffer) {
 
     uint32_t numLV2Ports = lilv_plugin_get_num_ports(lilvPlugin);
 
-    auto aapPluginExt = (aap_host_plugin_info_extension_t *) ctx->aap_host->get_extension_data(
+    auto aapPluginExt = (aap_host_plugin_info_extension_t *) ctx->aap_host->get_extension(
             ctx->aap_host, AAP_PLUGIN_INFO_EXTENSION_URI);
     assert(aapPluginExt);
     auto aapPluginInfo = aapPluginExt->get(ctx->aap_host, ctx->aap_plugin_id.c_str());
