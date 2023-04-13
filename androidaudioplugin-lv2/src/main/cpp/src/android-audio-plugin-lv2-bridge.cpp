@@ -81,7 +81,7 @@ void allocatePortBuffers(AndroidAudioPlugin *plugin, aap_buffer_t *buffer) {
     auto aapPluginExt = (aap_host_plugin_info_extension_t *) ctx->aap_host->get_extension(
             ctx->aap_host, AAP_PLUGIN_INFO_EXTENSION_URI);
     assert(aapPluginExt);
-    auto aapPluginInfo = aapPluginExt->get(ctx->aap_host, ctx->aap_plugin_id.c_str());
+    auto aapPluginInfo = aapPluginExt->get(aapPluginExt, ctx->aap_host, ctx->aap_plugin_id.c_str());
     for (int i = 0; i < aapPluginInfo.get_port_count(&aapPluginInfo); i++) {
         auto portInfo = aapPluginInfo.get_port(&aapPluginInfo, i);
         if (portInfo.content_type(&portInfo) == AAP_CONTENT_TYPE_MIDI2) {

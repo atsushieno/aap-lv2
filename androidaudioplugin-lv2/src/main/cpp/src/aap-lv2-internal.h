@@ -289,22 +289,22 @@ unmap_uri(LV2_URID_Unmap_Handle handle,
 
 // AAP extensions
 
-size_t aap_lv2_get_state_size(AndroidAudioPluginExtensionTarget target);
+size_t aap_lv2_get_state_size(aap_state_extension_t* ext, AndroidAudioPlugin* plugin);
 
-void aap_lv2_get_state(AndroidAudioPluginExtensionTarget target, aap_state_t *input);
+void aap_lv2_get_state(aap_state_extension_t* ext, AndroidAudioPlugin* plugin, aap_state_t *input);
 
-void aap_lv2_set_state(AndroidAudioPluginExtensionTarget target, aap_state_t *input);
+void aap_lv2_set_state(aap_state_extension_t* ext, AndroidAudioPlugin* plugin, aap_state_t *input);
 
-int32_t aap_lv2_get_preset_count(AndroidAudioPluginExtensionTarget target);
+int32_t aap_lv2_get_preset_count(aap_presets_extension_t* ext, AndroidAudioPlugin* plugin);
 
-int32_t aap_lv2_get_preset_data_size(AndroidAudioPluginExtensionTarget target, int32_t index);
+int32_t aap_lv2_get_preset_data_size(aap_presets_extension_t* ext, AndroidAudioPlugin* plugin, int32_t index);
 
-void aap_lv2_get_preset(AndroidAudioPluginExtensionTarget target, int32_t index, bool skipBinary,
+void aap_lv2_get_preset(aap_presets_extension_t* ext, AndroidAudioPlugin* plugin, int32_t index, bool skipBinary,
                         aap_preset_t *destination);
 
-int32_t aap_lv2_get_preset_index(AndroidAudioPluginExtensionTarget target);
+int32_t aap_lv2_get_preset_index(aap_presets_extension_t* ext, AndroidAudioPlugin* plugin);
 
-void aap_lv2_set_preset_index(AndroidAudioPluginExtensionTarget target, int32_t index);
+void aap_lv2_set_preset_index(aap_presets_extension_t* ext, AndroidAudioPlugin* plugin, int32_t index);
 
 void aap_lv2_plugin_prepare(AndroidAudioPlugin *plugin, aap_buffer_t *buffer);
 
