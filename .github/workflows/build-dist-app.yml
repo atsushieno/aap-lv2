@@ -44,7 +44,7 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         name: debug-apk
-        path:
+        path: |
           ./app/build/outputs/apk/debug/*.apk
           ./app/build/outputs/bundle/release/*.aab
     - name: Create Release
