@@ -243,15 +243,15 @@ int main(int argc, const char **argv)
 					auto valueNode = lilv_scale_point_get_value(sp);
 					auto label = escape_xml(lilv_node_as_string(labelNode));
 					auto value = escape_xml(lilv_node_as_string(valueNode));
-					fprintf(xmlFP, "        <enumeration label=\"%s\" value=\"%s\" />\n", label, value);
+					fprintf(xmlFP, "        <enumeration name=\"%s\" value=\"%s\" />\n", label, value);
 				}
 				fprintf(xmlFP, "      </parameter>\n");
 				lilv_scale_points_free(scalePoints);
 			} else if (isToggled) {
 				// kind of hacky way to support boolean...
 				fprintf(xmlFP, ">\n");
-				fprintf(xmlFP, "        <enumeration label=\"true\" value=\"1\" />\n");
-				fprintf(xmlFP, "        <enumeration label=\"false\" value=\"0\" />\n");
+				fprintf(xmlFP, "        <enumeration name=\"true\" value=\"1\" />\n");
+				fprintf(xmlFP, "        <enumeration name=\"false\" value=\"0\" />\n");
 				fprintf(xmlFP, "      </parameter>\n");
 			}
 			else
