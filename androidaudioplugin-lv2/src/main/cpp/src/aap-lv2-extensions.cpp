@@ -492,6 +492,8 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
         ctx->urids.urid_midi_event_type = map->map(map->handle, LV2_MIDI__MidiEvent);
         ctx->urids.urid_time_frame = map->map(map->handle, LV2_ATOM__frameTime);
         ctx->urids.urid_atom_float_type = map->map(map->handle, LV2_ATOM__Float);
+        ctx->urids.urid_patch_set = map->map(map->handle, LV2_PATCH__Set);
+        ctx->urids.urid_patch_property = map->map(map->handle, LV2_PATCH__property);
     }
 
     /* Check for thread-safe state restore() method. */

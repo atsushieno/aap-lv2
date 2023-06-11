@@ -350,9 +350,17 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, aap_buffer_t 
             // They are used either for Atom Sequence or ControlPort.
             auto paramValueU32 = *(uint32_t*) &paramValue;
             float paramValueF32 = *(float *) (uint32_t *) &paramValueU32;
-            if (ctx->mappings.lv2_patch_in_port >= 0) {
+            // FIXME: there should be some normative way to identify whether we should use LV2 patch or ControlPort...
+            if (ctx->mappings.lv2_patch_in_port >= 0 &&
+                !ctx->mappings.lv2_index_to_port.contains(paramId)) {
                 // write Patch to the Atom port
                 auto patchForge = &ctx->patch_forge_in;
+
+                /*
+                LV2_Atom_Forge_Frame patchFrame;
+                lv2_atom_forge_object(patchForge, &patchFrame, 0, ctx->urids.urid_patch_set);
+                lv2_atom_forge_key(patchForge, ctx->urids.urid_patch_property);
+                 */
 
                 // FIXME: implement patch object output
                 //assert(false);

@@ -161,7 +161,9 @@ struct AAPLV2URIDs {
     LV2_URID urid_atom_sequence_type{0},
             urid_midi_event_type{0},
             urid_time_frame{0},
-            urid_atom_float_type{0};
+            urid_atom_float_type{0},
+            urid_patch_set{0},
+            urid_patch_property{0};
 };
 
 class AAPLV2PortMappings {
