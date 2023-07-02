@@ -30,10 +30,10 @@ jobs:
     - name: apt update
       run: |
         sudo apt-get update
-    - name: set up JDK 11
+    - name: set up JDK 17
       uses: actions/setup-java@v3
       with:
-        java-version: 11
+        java-version: 17
         distribution: temurin
     - name: apt install
       run: |
@@ -71,10 +71,10 @@ jobs:
       with:
         path: /Users/runner/.gradle/caches/
         key: ${{ runner.os }}-gradle-caches
-    - name: set up JDK 11
+    - name: set up JDK 17
       uses: actions/setup-java@v3
       with:
-        java-version: 11
+        java-version: 17
         distribution: temurin
     - name: install deps
       run: |
