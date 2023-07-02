@@ -337,6 +337,41 @@ void aap_lv2_set_preset_index(aap_presets_extension_t* ext, AndroidAudioPlugin* 
     }
 }
 
+// parameters extension
+
+int32_t aap_lv2_get_parameter_count(aap_parameters_extension_t* ext, AndroidAudioPlugin *plugin) {
+    auto ctx = ((AAPLV2PluginContext *) plugin->plugin_specific);
+    return ctx->getAAPParameterCount();
+}
+
+aap_parameter_info_t aap_lv2_get_parameter(aap_parameters_extension_t* ext, AndroidAudioPlugin *plugin, int32_t index) {
+    auto ctx = ((AAPLV2PluginContext *) plugin->plugin_specific);
+    return ctx->getAAPParameterInfo(index);
+}
+
+double aap_lv2_get_parameter_property(aap_parameters_extension_t* ext, AndroidAudioPlugin *plugin, int32_t parameterId, int32_t propertyId) {
+    auto ctx = ((AAPLV2PluginContext *) plugin->plugin_specific);
+    return ctx->getAAPParameterProperty(parameterId, propertyId);
+}
+
+int32_t aap_lv2_get_enumeration_count(aap_parameters_extension_t* ext, AndroidAudioPlugin *plugin, int32_t parameterId) {
+    auto ctx = ((AAPLV2PluginContext *) plugin->plugin_specific);
+    return ctx->getAAPEnumerationCount(parameterId);
+}
+
+aap_parameter_enum_t aap_lv2_get_enumeration(aap_parameters_extension_t* ext, AndroidAudioPlugin *plugin, int32_t parameterId, int32_t enumIndex) {
+    auto ctx = ((AAPLV2PluginContext *) plugin->plugin_specific);
+    return ctx->getAAPEnumeration(parameterId, enumIndex);
+}
+
+aap_parameters_extension_t params_ext{nullptr,
+                                      aap_lv2_get_parameter_count,
+                                      aap_lv2_get_parameter,
+                                      aap_lv2_get_parameter_property,
+                                      aap_lv2_get_enumeration_count,
+                                      aap_lv2_get_enumeration
+                                      };
+
 aap_state_extension_t state_ext{nullptr,
                                 aap_lv2_get_state_size,
                                 aap_lv2_get_state,
@@ -350,6 +385,9 @@ aap_presets_extension_t presets_ext{nullptr,
                                     aap_lv2_set_preset_index};
 
 void* aap_lv2_plugin_get_extension(AndroidAudioPlugin *plugin, const char *uri) {
+    if (strcmp(uri, AAP_PARAMETERS_EXTENSION_URI) == 0) {
+        return &params_ext;
+    }
     if (strcmp(uri, AAP_STATE_EXTENSION_URI) == 0) {
         return &state_ext;
     }

@@ -34,7 +34,7 @@ LilvNode
 	*midi_event_uri_node,
 	*instrument_plugin_uri_node,
 	*audio_port_uri_node,
-	/* *control_port_uri_node, */
+	*control_port_uri_node,
 	*input_port_uri_node,
 	*output_port_uri_node,
 	*port_property_uri_node,
@@ -46,6 +46,7 @@ LilvNode
 #define PORTCHECKER_SINGLE(_name_,_type_) inline bool _name_ (const LilvPlugin* plugin, const LilvPort* port) { return lilv_port_is_a (plugin, port, _type_); }
 #define PORTCHECKER_AND(_name_,_cond1_,_cond2_) inline bool _name_ (const LilvPlugin* plugin, const LilvPort* port) { return _cond1_ (plugin, port) && _cond2_ (plugin, port); }
 
+PORTCHECKER_SINGLE (IS_CONTROL_PORT, control_port_uri_node)
 PORTCHECKER_SINGLE (IS_AUDIO_PORT, audio_port_uri_node)
 PORTCHECKER_SINGLE (IS_INPUT_PORT, input_port_uri_node)
 PORTCHECKER_SINGLE (IS_OUTPUT_PORT, output_port_uri_node)
@@ -86,7 +87,7 @@ int main(int argc, const char **argv)
     midi_event_uri_node = lilv_new_uri (world, LV2_MIDI__MidiEvent);
     instrument_plugin_uri_node = lilv_new_uri(world, LV2_CORE__InstrumentPlugin);
     audio_port_uri_node = lilv_new_uri (world, LV2_CORE__AudioPort);
-    /*control_port_uri_node = lilv_new_uri (world, LV2_CORE__ControlPort);*/
+    control_port_uri_node = lilv_new_uri (world, LV2_CORE__ControlPort);
     input_port_uri_node = lilv_new_uri (world, LV2_CORE__InputPort);
     output_port_uri_node = lilv_new_uri (world, LV2_CORE__OutputPort);
 	port_property_uri_node = lilv_new_uri (world, LV2_CORE__portProperty);
@@ -186,16 +187,17 @@ int main(int argc, const char **argv)
 		if (lilv_nodes_size(presets) > 0) {
 			fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/presets/v2' />\n");
 		}
-		fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/parameters/v2' />\n");
+		fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/parameters/v2.1' />\n");
 		fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/midi/v2' />\n");
 		// we put default Web UI anyways
 		fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/gui/v2' />\n");
 		fprintf(xmlFP, "    </extensions>\n");
 
+#if GENERATE_PARAMETERS_NODE
 		fprintf(xmlFP, "    <parameters xmlns='urn://androidaudioplugin.org/extensions/parameters'>\n");
 		for (uint32_t p = 0; p < lilv_plugin_get_num_ports(plugin); p++) {
 			auto port = lilv_plugin_get_port_by_index(plugin, p);
-			if (IS_AUDIO_PORT(plugin, port))
+			if (!IS_CONTROL_PORT(plugin, port))
 				continue;
 
 			LilvNode *defNode{nullptr}, *minNode{nullptr}, *maxNode{nullptr}, *propertyTypeNode{nullptr};
@@ -263,6 +265,7 @@ int main(int argc, const char **argv)
 			if(propertyTypeNode) lilv_node_free(propertyTypeNode);
 		}
 		fprintf(xmlFP, "    </parameters>\n");
+#endif
 
 		fprintf(xmlFP, "    <ports>\n");
 		for (uint32_t p = 0; p < lilv_plugin_get_num_ports(plugin); p++) {

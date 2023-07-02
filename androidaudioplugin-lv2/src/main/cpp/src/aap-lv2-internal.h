@@ -36,6 +36,7 @@
 #include <lv2/log/log.h>
 #include <lv2/buf-size/buf-size.h>
 #include <lv2/options/options.h>
+#include <lv2/port-props/port-props.h>
 #include <lv2/state/state.h>
 #include <lv2/presets/presets.h>
 #include <lv2/resize-port/resize-port.h>
@@ -70,6 +71,7 @@ inline int log_printf(LV2_Log_Handle handle, LV2_URID type, const char *fmt, ...
     return ret;
 }
 
+
 class AAPLV2PluginContextStatics {
 public:
     explicit AAPLV2PluginContextStatics(LilvWorld *world) {
@@ -84,6 +86,9 @@ public:
         work_interface_uri_node = lilv_new_uri(world, LV2_WORKER__interface);
         resize_port_minimum_size_node = lilv_new_uri(world, LV2_RESIZE_PORT__minimumSize);
         presets_preset_node = lilv_new_uri(world, LV2_PRESETS__Preset);
+        toggled_uri_node = lilv_new_uri (world, LV2_CORE__toggled);
+        integer_uri_node = lilv_new_uri (world, LV2_CORE__integer);
+        discrete_cv_uri_node = lilv_new_uri(world, LV2_PORT_PROPS__discreteCV);
         rdfs_label_node = lilv_new_uri(world, LILV_NS_RDFS "label");
     }
 
@@ -104,6 +109,8 @@ public:
     LilvNode *audio_port_uri_node, *control_port_uri_node, *atom_port_uri_node,
             *input_port_uri_node, *output_port_uri_node,
             *default_uri_node,
+            *toggled_uri_node, *integer_uri_node,
+            *discrete_cv_uri_node,
             *midi_event_uri_node, *patch_message_uri_node,
             *resize_port_minimum_size_node, *presets_preset_node,
             *work_interface_uri_node, *rdfs_label_node;
@@ -190,6 +197,8 @@ public:
         // They don't have default assignment...
         worker.threaded = false;
         state_worker.threaded = false;
+
+        buildParameterList();
     }
 
     ~AAPLV2PluginContext() {
@@ -242,6 +251,10 @@ public:
     int32_t selected_preset_index{-1};
     std::vector<std::unique_ptr<aap_preset_t>> presets{};
 
+    std::vector<aap_parameter_info_t*> aapParams{};
+    std::map<int32_t,int32_t> aapParamIdToEnumIndex{};
+    std::vector<aap_parameter_enum_t*> aapEnums{};
+
     std::unique_ptr<LV2_Feature *> stateFeaturesList() {
         LV2_Feature *list[]{
                 &features.mapFeature,
@@ -257,6 +270,142 @@ public:
         std::unique_ptr<LV2_Feature *> ret{ptr};
         return ret;
     }
+
+    void registerParameter(const LilvPlugin* plugin, const LilvPort* port) {
+        aap_parameter_info_t info;
+        info.path[0] = '\0';
+        info.stable_id = static_cast<int16_t>(lilv_port_get_index(plugin, port));
+        auto nameMax = sizeof(info.display_name);
+        auto nameNode = lilv_port_get_name(plugin, port);
+        const char* paramName = lilv_node_as_string(nameNode);
+        strncpy(info.display_name, paramName, nameMax);
+
+        LilvNode *defNode{nullptr}, *minNode{nullptr}, *maxNode{nullptr}, *propertyTypeNode{nullptr};
+        lilv_port_get_range(plugin, port, &defNode, &minNode, &maxNode);
+        LilvNodes *portProps = lilv_port_get_properties(plugin, port);
+        bool isInteger{false};
+        bool isToggled{false};
+        LILV_FOREACH(nodes, pp, portProps) {
+            auto portProp = lilv_nodes_get(portProps, pp);
+            if (lilv_node_equals(portProp, statics->integer_uri_node))
+                isInteger = true;
+            if (lilv_node_equals(portProp, statics->toggled_uri_node))
+                isToggled = true;
+        }
+        char def[1024], min[1024], max[1024], type[1024];
+        def[0] = 0;
+        min[0] = 0;
+        max[0] = 0;
+        type[0] = 0;
+        if (isToggled) {
+            info.default_value = lilv_node_as_float(defNode) > 0.0 ? 1 : 0;
+        } else if (isInteger) {
+            info.default_value = lilv_node_as_int(defNode);
+            info.min_value = lilv_node_as_int(minNode);
+            info.max_value = lilv_node_as_int(maxNode);
+        } else {
+            info.default_value = lilv_node_as_float(defNode);
+            info.min_value = lilv_node_as_float(minNode);
+            info.max_value = lilv_node_as_float(maxNode);
+        }
+
+        LilvScalePoints* scalePoints = lilv_port_get_scale_points(plugin, port);
+        if (scalePoints != nullptr) {
+            aapParamIdToEnumIndex[info.stable_id] = aapEnums.size();
+
+            LILV_FOREACH(scale_points, spi, scalePoints) {
+                auto sp = lilv_scale_points_get(scalePoints, spi);
+                auto labelNode = lilv_scale_point_get_label(sp);
+                auto valueNode = lilv_scale_point_get_value(sp);
+                auto label = lilv_node_as_string(labelNode);
+                auto value = lilv_node_as_float(valueNode);
+
+                aap_parameter_enum_t e;
+                e.value = value;
+                strncpy(e.name, label, sizeof(e.name));
+                aapEnums.emplace_back(new aap_parameter_enum_t(e));
+            }
+            lilv_scale_points_free(scalePoints);
+        } else if (isToggled) {
+            aapParamIdToEnumIndex[info.stable_id] = aapEnums.size();
+            aap_parameter_enum_t t;
+            t.value = 1;
+            strncpy(t.name, "true", sizeof(t.name));
+            aapEnums.emplace_back(new aap_parameter_enum_t(t));
+
+            aap_parameter_enum_t f;
+            f.value = 0;
+            strncpy(f.name, "false", sizeof(f.name));
+            aapEnums.emplace_back(new aap_parameter_enum_t(f));
+        }
+        aapParams.emplace_back(new aap_parameter_info_t(info));
+
+        if(defNode) lilv_node_free(defNode);
+        if(minNode) lilv_node_free(minNode);
+        if(maxNode) lilv_node_free(maxNode);
+        if(propertyTypeNode) lilv_node_free(propertyTypeNode);
+    }
+
+#define PORTCHECKER_SINGLE(_name_,_type_) inline bool _name_ (const LilvPlugin* plugin, const LilvPort* port) { return lilv_port_is_a (plugin, port, statics->_type_); }
+#define PORTCHECKER_AND(_name_,_cond1_,_cond2_) inline bool _name_ (const LilvPlugin* plugin, const LilvPort* port) { return _cond1_ (plugin, port) && _cond2_ (plugin, port); }
+
+        PORTCHECKER_SINGLE (IS_CONTROL_PORT, control_port_uri_node)
+        PORTCHECKER_SINGLE (IS_AUDIO_PORT, audio_port_uri_node)
+        PORTCHECKER_SINGLE (IS_INPUT_PORT, input_port_uri_node)
+        PORTCHECKER_SINGLE (IS_OUTPUT_PORT, output_port_uri_node)
+        PORTCHECKER_SINGLE (IS_ATOM_PORT, atom_port_uri_node)
+        PORTCHECKER_AND (IS_AUDIO_IN, IS_AUDIO_PORT, IS_INPUT_PORT)
+        PORTCHECKER_AND (IS_AUDIO_OUT, IS_AUDIO_PORT, IS_OUTPUT_PORT)
+
+    void buildParameterList() {
+        aapParams.clear();
+        aapParamIdToEnumIndex.clear();
+        aapEnums.clear();
+
+        for (uint32_t p = 0; p < lilv_plugin_get_num_ports(plugin); p++) {
+            auto port = lilv_plugin_get_port_by_index(plugin, p);
+            if (!IS_CONTROL_PORT(plugin, port))
+                continue;
+            registerParameter(plugin, port);
+        }
+    }
+
+    int32_t getAAPParameterCount() { return aapParams.size(); }
+    aap_parameter_info_t getAAPParameterInfo(int index) { return *aapParams[index]; }
+    double getAAPParameterProperty(int32_t parameterId, int32_t propertyId) {
+        for (auto info: aapParams) {
+            if (info->stable_id == parameterId) {
+                switch (propertyId) {
+                    case AAP_PARAMETER_PROPERTY_MIN_VALUE:
+                        return info->min_value;
+                    case AAP_PARAMETER_PROPERTY_MAX_VALUE:
+                        return info->max_value;
+                    case AAP_PARAMETER_PROPERTY_DEFAULT_VALUE:
+                        return info->default_value;
+                    case AAP_PARAMETER_PROPERTY_IS_DISCRETE: {
+                        auto port = lilv_plugin_get_port_by_index(plugin, parameterId);
+                        auto value = lilv_port_get_value(plugin, port, statics->discrete_cv_uri_node);
+                        if (value != nullptr)
+                            return lilv_node_as_float((LilvNode*) value);
+                    }
+                        // LV2 does not have it (yet?)
+                    case AAP_PARAMETER_PROPERTY_PRIORITY:
+                        return 0;
+                }
+            }
+        }
+        return 0;
+    }
+    int32_t getAAPEnumerationCount(int32_t parameterId) {
+        auto port = lilv_plugin_get_port_by_index(plugin, parameterId);
+        LilvScalePoints* scalePoints = lilv_port_get_scale_points(plugin, port);
+        return scalePoints != nullptr ? lilv_scale_points_size(scalePoints) : 0;
+    }
+    aap_parameter_enum_t getAAPEnumeration(int32_t parameterId, int32_t enumIndex) {
+        int32_t baseIndex = aapParamIdToEnumIndex[parameterId];
+        return *aapEnums[baseIndex + enumIndex];
+    }
+
 
     // from jalv codebase
     Symap *symap{nullptr};          ///< URI map
