@@ -2,13 +2,15 @@ plugins {
     id 'com.android.library'
     id 'kotlin-android'
     id 'maven-publish'
+    id 'signing'
 }
 
 android {
-    compileSdkVersion 33
+    namespace 'org.androidaudioplugin.lv2'
+
     defaultConfig {
-        minSdkVersion 29
-        targetSdkVersion 33
+        compileSdk = 33
+        minSdk = 29
         versionCode 1
         versionName libs.versions.aap.lv2.get()
 
@@ -36,8 +38,9 @@ android {
 
     // https://github.com/google/prefab/issues/127
     packagingOptions {
-        exclude '**/libc++_shared.so'
-        exclude '**/libandroidaudioplugin.so'
+        jniLibs {
+            excludes += ['**/libc++_shared.so', '**/libandroidaudioplugin.so']
+        }
     }
 
     buildFeatures {
@@ -56,22 +59,13 @@ android {
             path "src/main/cpp/CMakeLists.txt"
         }
     }
-}
 
-afterEvaluate {
-    publishing {
-        publications {
-            // Applies the component for the release build variant.
-            // FIXME: release build doesn't work. See https://github.com/atsushieno/aap-core/issues/68 for details.
-            release(MavenPublication) {
-                version = android.defaultConfig.versionName
-                from components.release
-            }
-            debug(MavenPublication) {
-                version = android.defaultConfig.versionName
-                from components.debug
-            }
-        }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
+    kotlinOptions {
+        jvmTarget = '1.8'
     }
 }
 
@@ -83,3 +77,5 @@ dependencies {
     androidTestImplementation (libs.test.ext.junit)
     androidTestImplementation (libs.test.espresso.core)
 }
+
+apply { from ("../publish-pom.gradle") }

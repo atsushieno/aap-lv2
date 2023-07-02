@@ -1,2 +1,1 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="org.androidaudioplugin.lv2" />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
