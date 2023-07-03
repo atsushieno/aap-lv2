@@ -272,7 +272,7 @@ public:
     }
 
     void registerParameter(const LilvPlugin* plugin, const LilvPort* port) {
-        aap_parameter_info_t info;
+        aap_parameter_info_t info{0, {}, {}, 0, 1, 0, 0};
         info.path[0] = '\0';
         info.stable_id = static_cast<int16_t>(lilv_port_get_index(plugin, port));
         auto nameMax = sizeof(info.display_name);
@@ -292,21 +292,18 @@ public:
             if (lilv_node_equals(portProp, statics->toggled_uri_node))
                 isToggled = true;
         }
-        char def[1024], min[1024], max[1024], type[1024];
-        def[0] = 0;
-        min[0] = 0;
-        max[0] = 0;
-        type[0] = 0;
         if (isToggled) {
-            info.default_value = lilv_node_as_float(defNode) > 0.0 ? 1 : 0;
+            info.default_value = defNode == nullptr ? 0 : lilv_node_as_float(defNode) > 0.0 ? 1 : 0;
+            info.min_value = 0;
+            info.max_value = 1;
         } else if (isInteger) {
-            info.default_value = lilv_node_as_int(defNode);
-            info.min_value = lilv_node_as_int(minNode);
-            info.max_value = lilv_node_as_int(maxNode);
+            info.default_value = defNode == nullptr ? 0 : lilv_node_as_int(defNode);
+            info.min_value = minNode == nullptr ? 0 : lilv_node_as_int(minNode);
+            info.max_value = maxNode == nullptr ? 1 : lilv_node_as_int(maxNode);
         } else {
-            info.default_value = lilv_node_as_float(defNode);
-            info.min_value = lilv_node_as_float(minNode);
-            info.max_value = lilv_node_as_float(maxNode);
+            info.default_value = defNode == nullptr ? 0 : lilv_node_as_float(defNode);
+            info.min_value = minNode == nullptr ? 0 : lilv_node_as_float(minNode);
+            info.max_value = maxNode == nullptr ? 1 : lilv_node_as_float(maxNode);
         }
 
         LilvScalePoints* scalePoints = lilv_port_get_scale_points(plugin, port);
