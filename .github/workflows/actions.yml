@@ -46,6 +46,11 @@ jobs:
         WORKSPACE: ${{ github.workspace }}
         GPG_KEY_CONTENTS: ${{ secrets.GPG_KEY_CONTENTS }}
         SIGNING_SECRET_KEY_RING_FILE: ${{ secrets.SIGNING_SECRET_KEY_RING_FILE }}
+    # Only for release tags
+    - name: rewrite publish-pom.gradle to require signing
+      if: startsWith(github.ref, 'refs/tags/')
+      run: |
+        sed -i "s/signing {}/signing { sign(publishing.publications) }/" publish-pom.gradle
     - name: build
       run: make
     # ONLY FOR NEW RELEASE TAGS
