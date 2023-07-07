@@ -51,7 +51,7 @@ jobs:
     # ONLY FOR NEW RELEASE TAGS
     - name: publish
       if: startsWith(github.ref, 'refs/tags/')
-      run: ./gradlew --warning-mode publish
+      run: ./gradlew --warning-mode all publish
       env:
         GITHUB_TOKEN: ${{ secrets.MAVEN_PAT }}
         OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
