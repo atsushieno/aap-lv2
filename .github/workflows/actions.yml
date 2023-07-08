@@ -51,18 +51,14 @@ jobs:
     - name: apt install
       run: |
         echo y | sudo apt-get install doxygen libgrpc++-dev libgrpc-dev libprotobuf-dev protobuf-compiler protobuf-compiler-grpc graphviz cmake ninja-build liblilv-dev
+    # ONLY FOR NON-RELEASES
     - name: build
+      if: ${{ !startsWith(github.ref, 'refs/tags/') }}
       run: make
-      env:
-        OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
-        OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
-        SIGNING_KEY_ID: ${{ secrets.SIGNING_KEY_ID }}
-        SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
-        SIGNING_SECRET_KEY_RING_FILE: ${{ format('{0}/{1}', github.workspace, secrets.SIGNING_SECRET_KEY_RING_FILE) }}
     # ONLY FOR NEW RELEASE TAGS
     - name: publish
       if: startsWith(github.ref, 'refs/tags/')
-      run: ./gradlew --warning-mode all publish
+      run: make build-and-publish
       env:
         OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
         OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
