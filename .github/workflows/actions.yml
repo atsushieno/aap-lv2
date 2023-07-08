@@ -13,6 +13,27 @@ jobs:
       uses: actions/checkout@v1
       with:
         submodules: recursive
+    - name: apt update
+      run: |
+        sudo apt-get update
+    - name: set up JDK 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: 17
+        distribution: temurin
+    # ONLY FOR NEW RELEASE TAGS
+    - name: setup gpg necessities
+      if: startsWith(github.ref, 'refs/tags/')
+      run: sudo bash -c "echo '$GPG_KEY_CONTENTS' | base64 -d > $WORKSPACE/'$SIGNING_SECRET_KEY_RING_FILE'"
+      env:
+        WORKSPACE: ${{ github.workspace }}
+        GPG_KEY_CONTENTS: ${{ secrets.GPG_KEY_CONTENTS }}
+        SIGNING_SECRET_KEY_RING_FILE: ${{ secrets.SIGNING_SECRET_KEY_RING_FILE }}
+    # ONLY FOR NEW RELEASE TAGS
+    - name: rewrite publish-pom.gradle to require signing
+      if: startsWith(github.ref, 'refs/tags/')
+      run: |
+        sed -i "s/signing {}/signing { sign(publishing.publications) }/" publish-pom.gradle
     - name: cache AVD
       uses: actions/cache@v3
       env:
@@ -27,32 +48,17 @@ jobs:
       with:
         path: /home/runner/.gradle/caches/
         key: ${{ runner.os }}-gradle-caches
-    - name: apt update
-      run: |
-        sudo apt-get update
-    - name: set up JDK 17
-      uses: actions/setup-java@v3
-      with:
-        java-version: 17
-        distribution: temurin
     - name: apt install
       run: |
         echo y | sudo apt-get install doxygen libgrpc++-dev libgrpc-dev libprotobuf-dev protobuf-compiler protobuf-compiler-grpc graphviz cmake ninja-build liblilv-dev
-    # ONLY FOR NEW RELEASE TAGS
-    - name: setup gpg necessities
-      if: startsWith(github.ref, 'refs/tags/')
-      run: sudo bash -c "echo '$GPG_KEY_CONTENTS' | base64 -d > $WORKSPACE/'$SIGNING_SECRET_KEY_RING_FILE'"
-      env:
-        WORKSPACE: ${{ github.workspace }}
-        GPG_KEY_CONTENTS: ${{ secrets.GPG_KEY_CONTENTS }}
-        SIGNING_SECRET_KEY_RING_FILE: ${{ secrets.SIGNING_SECRET_KEY_RING_FILE }}
-    # Only for release tags
-    - name: rewrite publish-pom.gradle to require signing
-      if: startsWith(github.ref, 'refs/tags/')
-      run: |
-        sed -i "s/signing {}/signing { sign(publishing.publications) }/" publish-pom.gradle
     - name: build
       run: make
+      env:
+        OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+        OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
+        SIGNING_KEY_ID: ${{ secrets.SIGNING_KEY_ID }}
+        SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+        SIGNING_SECRET_KEY_RING_FILE: ${{ format('{0}/{1}', github.workspace, secrets.SIGNING_SECRET_KEY_RING_FILE) }}
     # ONLY FOR NEW RELEASE TAGS
     - name: publish
       if: startsWith(github.ref, 'refs/tags/')
