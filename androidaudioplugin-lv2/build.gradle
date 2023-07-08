@@ -78,4 +78,4 @@ dependencies {
     androidTestImplementation (libs.test.espresso.core)
 }
 
-apply { from ("../publish-pom.gradle") }
+apply from: "../publish-pom.gradle"
