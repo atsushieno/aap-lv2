@@ -59,10 +59,10 @@ android {
 dependencies {
     implementation project(':androidaudioplugin-lv2')
     implementation (libs.aap.core)
-    implementation (libs.aap.ui.compose)
+    implementation (libs.aap.ui.compose.app)
     implementation (libs.aap.ui.web)
     implementation (libs.aap.midi.device.service)
-    implementation (libs.material)
+    implementation (libs.material3)
 
     testImplementation (libs.junit)
     implementation (libs.aap.testing)
