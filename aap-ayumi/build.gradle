@@ -5,12 +5,12 @@ plugins {
 }
 
 android {
-    compileSdkVersion 33
+    compileSdk = 34
 
     defaultConfig {
         applicationId "org.androidaudioplugin.aap_ayumi"
-        minSdkVersion 29
-        targetSdkVersion 33
+        minSdk = 29
+        targetSdk = 34
         versionCode 1
         versionName libs.versions.aap.lv2.get()
 
