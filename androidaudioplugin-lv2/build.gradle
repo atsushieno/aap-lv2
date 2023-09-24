@@ -70,9 +70,7 @@ android {
 }
 
 dependencies {
-    // FIXME: aar from MavenLocal should work, but it does not. https://github.com/atsushieno/aap-core/issues/174
-    //implementation (libs.aap.core)
-    implementation (project (":androidaudioplugin"))
+    implementation (libs.aap.core)
     implementation (libs.androidx.core.ktx)
 
     testImplementation (libs.junit)
