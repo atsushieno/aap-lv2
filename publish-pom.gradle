@@ -37,7 +37,9 @@ afterEvaluate {
                 from components.release
             }
 
-            configureEach {
+            androidaudioplugin_lv2(MavenPublication) {
+                from components.findByName("androidaudioplugin-lv2")
+
                 artifact(javadocJar)
                 artifact(sourceJar)
 
