@@ -282,7 +282,7 @@ int32_t aap_lv2_on_preset_loaded(Jalv* jalv, const LilvNode* node, const LilvNod
     aap_preset_t preset;
     preset.id = (int32_t) jalv->presets.size();
     strncpy(preset.name, name, AAP_PRESETS_EXTENSION_MAX_NAME_LENGTH);
-    jalv->presets.emplace_back(std::make_unique<AAPPresetAndLv2Binary>(preset, data));
+    jalv->presets.emplace_back(std::make_unique<AAPPresetAndLv2Binary>(preset, strdup(stateData)));
     aap::a_log_f(AAP_LOG_LEVEL_DEBUG, "AAP-LV2", "aap_lv2_on_preset_loaded. %s: %s", name, lilv_node_as_string(node));
     free((void *) name);
     free(stateData);
@@ -316,12 +316,15 @@ void aap_lv2_set_preset_index(aap_presets_extension_t* ext, AndroidAudioPlugin* 
     aap_lv2_ensure_preset_loaded(ctx);
     ctx->selected_preset_index = index;
 
-    auto &p = ctx->presets[index];
-
-    auto state = lilv_state_new_from_string(ctx->world,
-                                            &ctx->features.urid_map_feature_data,
-                                            (const char *) p->data);
-    lilv_state_restore(state, ctx->instance, aap_lv2_set_port_value, ctx, 0, ctx->stateFeaturesList().get());
+    for (auto& p : ctx->presets) {
+        if (p->preset.id == index) {
+            auto state = lilv_state_new_from_string(ctx->world,
+                                                    &ctx->features.urid_map_feature_data,
+                                                    (const char *) p->data);
+            lilv_state_restore(state, ctx->instance, aap_lv2_set_port_value, ctx, 0, ctx->stateFeaturesList().get());
+            break;
+        }
+    }
 }
 
 // parameters extension

@@ -210,6 +210,9 @@ public:
     }
 
     ~AAPLV2PluginContext() {
+        for (auto &p: presets)
+            if (p->data)
+                free(p->data);
         for (auto p: midi_atom_inputs)
             free(p.second);
         for (auto p: explicitly_allocated_port_buffers)
