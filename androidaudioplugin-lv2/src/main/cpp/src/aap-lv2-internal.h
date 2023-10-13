@@ -186,6 +186,14 @@ public:
     int32_t lv2_patch_out_port{-1};
 };
 
+struct AAPPresetAndLv2Binary {
+    aap_preset_t preset;
+    void* data;
+    AAPPresetAndLv2Binary(aap_preset_t preset, void* data)
+            : preset(preset), data(data) {
+    }
+};
+
 class AAPLV2PluginContext {
 public:
     AAPLV2PluginContext(AndroidAudioPluginHost *host, AAPLV2PluginContextStatics *statics,
@@ -202,9 +210,6 @@ public:
     }
 
     ~AAPLV2PluginContext() {
-        for (auto &p: presets)
-            if (p->data)
-                free(p->data);
         for (auto p: midi_atom_inputs)
             free(p.second);
         for (auto p: explicitly_allocated_port_buffers)
@@ -249,7 +254,7 @@ public:
     LV2_Atom_Forge patch_forge_out{};
 
     int32_t selected_preset_index{-1};
-    std::vector<std::unique_ptr<aap_preset_t>> presets{};
+    std::vector<std::unique_ptr<AAPPresetAndLv2Binary>> presets{};
 
     std::vector<aap_parameter_info_t*> aapParams{};
     std::map<int32_t,int32_t> aapParamIdToEnumIndex{};
@@ -447,8 +452,7 @@ int32_t aap_lv2_get_preset_count(aap_presets_extension_t* ext, AndroidAudioPlugi
 
 int32_t aap_lv2_get_preset_data_size(aap_presets_extension_t* ext, AndroidAudioPlugin* plugin, int32_t index);
 
-void aap_lv2_get_preset(aap_presets_extension_t* ext, AndroidAudioPlugin* plugin, int32_t index, bool skipBinary,
-                        aap_preset_t *destination);
+void aap_lv2_get_preset(aap_presets_extension_t* ext, AndroidAudioPlugin* plugin, int32_t index, aap_preset_t *destination, aapxs_completion_callback, void*);
 
 int32_t aap_lv2_get_preset_index(aap_presets_extension_t* ext, AndroidAudioPlugin* plugin);
 

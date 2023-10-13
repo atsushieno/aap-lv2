@@ -6,8 +6,8 @@
       xmlns:gui="urn://androidaudioplugin.org/extensions/gui">
     <extensions>
         <extension uri="urn://androidaudioplugin.org/extensions/state/v2" />
-        <extension uri="urn://androidaudioplugin.org/extensions/presets/v2" />
-        <extension uri="urn://androidaudioplugin.org/extensions/midi2/v2" />
+        <extension uri="urn://androidaudioplugin.org/extensions/presets/v3" />
+        <extension uri="urn://androidaudioplugin.org/extensions/midi2/v3" />
         <extension uri="urn://androidaudioplugin.org/extensions/plugin-info/v2" />
         <extension uri="urn://androidaudioplugin.org/extensions/gui/v2" />
     </extensions>

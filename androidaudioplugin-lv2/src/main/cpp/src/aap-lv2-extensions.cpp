@@ -280,11 +280,9 @@ int32_t aap_lv2_on_preset_loaded(Jalv* jalv, const LilvNode* node, const LilvNod
     auto stateData = lilv_state_to_string(jalv->world, uridMap, uridUnmap, state, lilv_node_as_string(node), nullptr);
 
     aap_preset_t preset;
-    preset.index = (int32_t) jalv->presets.size();
+    preset.id = (int32_t) jalv->presets.size();
     strncpy(preset.name, name, AAP_PRESETS_EXTENSION_MAX_NAME_LENGTH);
-    preset.data_size = (int32_t) strlen(const_cast<const char*>(stateData));
-    preset.data = strdup(stateData);
-    jalv->presets.emplace_back(std::make_unique<aap_preset_t>(preset));
+    jalv->presets.emplace_back(std::make_unique<AAPPresetAndLv2Binary>(preset, data));
     aap::a_log_f(AAP_LOG_LEVEL_DEBUG, "AAP-LV2", "aap_lv2_on_preset_loaded. %s: %s", name, lilv_node_as_string(node));
     free((void *) name);
     free(stateData);
@@ -302,19 +300,11 @@ int32_t aap_lv2_get_preset_count(aap_presets_extension_t* ext, AndroidAudioPlugi
     aap_lv2_ensure_preset_loaded(ctx);
     return ctx->presets.size();
 }
-int32_t aap_lv2_get_preset_data_size(aap_presets_extension_t* ext, AndroidAudioPlugin* plugin, int32_t index) {
-    auto ctx = ((AAPLV2PluginContext *) plugin->plugin_specific);
-    aap_lv2_ensure_preset_loaded(ctx);
-    return ctx->presets[index]->data_size;
-}
-void aap_lv2_get_preset(aap_presets_extension_t* ext, AndroidAudioPlugin* plugin, int32_t index, bool skipBinary, aap_preset_t* destination) {
+void aap_lv2_get_preset(aap_presets_extension_t* ext, AndroidAudioPlugin* plugin, int32_t index, aap_preset_t* destination, aapxs_completion_callback, void*) {
     auto ctx = ((AAPLV2PluginContext *) plugin->plugin_specific);
     aap_lv2_ensure_preset_loaded(ctx);
     auto preset = ctx->presets[index].get();
-    destination->data_size = preset->data_size;
-    strncpy(destination->name, preset->name, AAP_PRESETS_EXTENSION_MAX_NAME_LENGTH);
-    if (!skipBinary)
-        memcpy(destination->data, preset->data, preset->data_size);
+    strncpy(destination->name, preset->preset.name, AAP_PRESETS_EXTENSION_MAX_NAME_LENGTH);
 }
 int32_t aap_lv2_get_preset_index(aap_presets_extension_t* ext, AndroidAudioPlugin* plugin) {
     auto ctx = ((AAPLV2PluginContext *) plugin->plugin_specific);
@@ -326,15 +316,12 @@ void aap_lv2_set_preset_index(aap_presets_extension_t* ext, AndroidAudioPlugin* 
     aap_lv2_ensure_preset_loaded(ctx);
     ctx->selected_preset_index = index;
 
-    for (auto& p : ctx->presets) {
-        if (p->index == index) {
-            auto state = lilv_state_new_from_string(ctx->world,
-                                                    &ctx->features.urid_map_feature_data,
-                                                    (const char *) p->data);
-            lilv_state_restore(state, ctx->instance, aap_lv2_set_port_value, ctx, 0, ctx->stateFeaturesList().get());
-            break;
-        }
-    }
+    auto &p = ctx->presets[index];
+
+    auto state = lilv_state_new_from_string(ctx->world,
+                                            &ctx->features.urid_map_feature_data,
+                                            (const char *) p->data);
+    lilv_state_restore(state, ctx->instance, aap_lv2_set_port_value, ctx, 0, ctx->stateFeaturesList().get());
 }
 
 // parameters extension
@@ -379,7 +366,6 @@ aap_state_extension_t state_ext{nullptr,
 
 aap_presets_extension_t presets_ext{nullptr,
                                     aap_lv2_get_preset_count,
-                                    aap_lv2_get_preset_data_size,
                                     aap_lv2_get_preset,
                                     aap_lv2_get_preset_index,
                                     aap_lv2_set_preset_index};
@@ -395,6 +381,12 @@ void* aap_lv2_plugin_get_extension(AndroidAudioPlugin *plugin, const char *uri) 
         return &presets_ext;
     }
     return nullptr;
+}
+
+aap_plugin_info_t aap_lv2_plugin_get_plugin_info(AndroidAudioPlugin* plugin) {
+    auto ctx = ((AAPLV2PluginContext *) plugin->plugin_specific);
+    auto hostExt = (aap_host_plugin_info_extension_t*) ctx->aap_host->get_extension(ctx->aap_host, AAP_PLUGIN_INFO_EXTENSION_URI);
+    return hostExt->get(hostExt, ctx->aap_host, ctx->aap_plugin_id.c_str());
 }
 
 // AAP factory members
@@ -558,7 +550,8 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
             aap_lv2_plugin_activate,
             aap_lv2_plugin_process,
             aap_lv2_plugin_deactivate,
-            aap_lv2_plugin_get_extension
+            aap_lv2_plugin_get_extension,
+            aap_lv2_plugin_get_plugin_info,
     };
     aap::a_log_f(AAP_LOG_LEVEL_INFO, AAP_LV2_TAG, "Instantiated aap-lv2 plugin %s", pluginUniqueID);
     return ret;
