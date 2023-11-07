@@ -182,15 +182,15 @@ int main(int argc, const char **argv)
 
 		LilvNodes* presets = lilv_plugin_get_related(plugin, presets_uri_node);
 		fprintf(xmlFP, "    <extensions>\n");
-		fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/plugin-info/v2' />\n");
-		fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/state/v2' />\n");
+		fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/plugin-info/v3' />\n");
+		fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/state/v3' />\n");
 		if (lilv_nodes_size(presets) > 0) {
 			fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/presets/v3' />\n");
 		}
-		fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/parameters/v2.1' />\n");
+		fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/parameters/v3' />\n");
 		fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/midi/v3' />\n");
 		// we put default Web UI anyways
-		fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/gui/v2' />\n");
+		fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/gui/v3' />\n");
 		fprintf(xmlFP, "    </extensions>\n");
 
 #if GENERATE_PARAMETERS_NODE
