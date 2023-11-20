@@ -300,11 +300,13 @@ int32_t aap_lv2_get_preset_count(aap_presets_extension_t* ext, AndroidAudioPlugi
     aap_lv2_ensure_preset_loaded(ctx);
     return ctx->presets.size();
 }
-void aap_lv2_get_preset(aap_presets_extension_t* ext, AndroidAudioPlugin* plugin, int32_t index, aap_preset_t* destination, aapxs_completion_callback, void*) {
+void aap_lv2_get_preset(aap_presets_extension_t* ext, AndroidAudioPlugin* plugin, int32_t index, aap_preset_t* destination, aapxs_completion_callback callback, void* callbackContext) {
     auto ctx = ((AAPLV2PluginContext *) plugin->plugin_specific);
     aap_lv2_ensure_preset_loaded(ctx);
     auto preset = ctx->presets[index].get();
     strncpy(destination->name, preset->preset.name, AAP_PRESETS_EXTENSION_MAX_NAME_LENGTH);
+    if (callback)
+        callback(callbackContext, plugin);
 }
 int32_t aap_lv2_get_preset_index(aap_presets_extension_t* ext, AndroidAudioPlugin* plugin) {
     auto ctx = ((AAPLV2PluginContext *) plugin->plugin_specific);
