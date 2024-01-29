@@ -1,6 +1,8 @@
 rootProject.name = "aap-lv2"
 include ":androidaudioplugin-lv2", ":aap-ayumi"
 
+// Enable them when you want to inspect aap-core internals using aap-ayumi
+/*
 include ':androidaudioplugin'
 include ':androidaudioplugin-testing'
 include ':androidaudioplugin-manager'
@@ -18,3 +20,4 @@ project(':androidaudioplugin-ui-web').projectDir = new File('external/aap-core/a
 project(':androidaudioplugin-ui-compose').projectDir = new File('external/aap-core/androidaudioplugin-ui-compose')
 project(':androidaudioplugin-ui-compose-app').projectDir = new File('external/aap-core/androidaudioplugin-ui-compose-app')
 project(':androidaudioplugin-midi-device-service').projectDir = new File('external/aap-core/androidaudioplugin-midi-device-service')
+ */
