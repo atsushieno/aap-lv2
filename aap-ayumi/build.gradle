@@ -58,11 +58,19 @@ android {
 
 dependencies {
     implementation project(':androidaudioplugin-lv2')
+    // FIXME: aar from MavenLocal should work, but it does not. https://github.com/atsushieno/aap-core/issues/174
+    /*
     implementation (libs.aap.core)
     implementation (libs.aap.ui.compose.app)
     implementation (libs.aap.ui.web)
     implementation (libs.aap.midi.device.service)
-    implementation (libs.aap.testing)
+    androidTestImplementation (libs.aap.testing)
+     */
+    implementation (project (":androidaudioplugin"))
+    implementation (project (":androidaudioplugin-ui-compose-app"))
+    implementation (project (":androidaudioplugin-ui-web"))
+    implementation (project (":androidaudioplugin-midi-device-service"))
+    androidTestImplementation (project (":androidaudioplugin-testing"))
 
     testImplementation (libs.junit)
     androidTestImplementation (libs.test.rules)

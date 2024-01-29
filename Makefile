@@ -4,19 +4,16 @@ ABIS_SIMPLE= x86 x86_64 armeabi-v7a arm64-v8a
 all: build-all
 
 build-and-publish: \
-	build-aap-core \
 	build-lv2-importer \
 	create-local-prop \
 	publish \
 
 build-all: \
-	build-aap-core \
 	build-lv2-importer \
 	create-local-prop \
 	build-java
 
 build-non-app: \
-	build-aap-core \
 	build-lv2-importer \
 	build-java-core
 
