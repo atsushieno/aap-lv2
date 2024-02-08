@@ -9,9 +9,6 @@ android {
 }
 
 afterEvaluate {
-// This condition is required because of https://github.com/atsushieno/aap-core/issues/174#issuecomment-1844899986
-if (name == "androidaudioplugin-lv2") {
-
     tasks.register('javadocJar', Jar) {
         archiveClassifier.set('javadoc')
     }
@@ -83,5 +80,4 @@ if (name == "androidaudioplugin-lv2") {
 
     // keep it as is. It is replaced by CI release builds
     signing {}
-}
 }
