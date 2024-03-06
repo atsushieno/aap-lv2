@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    compileSdk = 34
+    compileSdkPreview = "VanillaIceCream"
 
     defaultConfig {
         applicationId "org.androidaudioplugin.aap_ayumi"
