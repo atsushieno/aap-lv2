@@ -10,8 +10,8 @@ android {
     namespace 'org.androidaudioplugin.lv2'
 
     defaultConfig {
-        compileSdkPreview = "VanillaIceCream"
-        minSdk = 29
+        compileSdk = libs.versions.android.compileSdk.get().toInteger()
+        minSdk = libs.versions.android.minSdk.get().toInteger()
         versionCode 1
         versionName libs.versions.aap.lv2.get()
 

@@ -5,12 +5,12 @@ plugins {
 }
 
 android {
-    compileSdkPreview = "VanillaIceCream"
+    compileSdk = libs.versions.android.compileSdk.get().toInteger()
 
     defaultConfig {
         applicationId "org.androidaudioplugin.aap_ayumi"
-        minSdk = 29
-        targetSdk = 34
+        minSdk = libs.versions.android.minSdk.get().toInteger()
+        targetSdk = libs.versions.android.targetSdk.get().toInteger()
         versionCode 1
         versionName libs.versions.aap.lv2.get()
 
