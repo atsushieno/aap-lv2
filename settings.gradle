@@ -1,3 +1,19 @@
+pluginManagement {
+    repositories {
+        google()
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+dependencyResolutionManagement {
+    repositories {
+        mavenLocal()
+        google()
+        mavenCentral()
+        maven { url = uri("https://jitpack.io") } // required for compose-markdown...
+    }
+}
+
 rootProject.name = "aap-lv2"
 include ":androidaudioplugin-lv2", ":aap-ayumi"
 

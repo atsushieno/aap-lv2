@@ -1,28 +1,17 @@
-
-buildscript {
-    val enable_asan: Boolean by extra(false)
-
-    repositories {
-        google()
-        mavenCentral()
-        maven ("https://plugins.gradle.org/m2/")
-        maven ("https://maven.pkg.jetbrains.space/public/p/compose/dev")
-    }
-    dependencies {
-        classpath (libs.tools.build.gradle)
-        classpath (libs.kotlin.gradle.plugin)
-        classpath (libs.dokka.gradle.plugin)
-    }
-}
-
 plugins {
+    alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.android.library) apply false
+    alias(libs.plugins.kotlin.android) apply false
+    alias(libs.plugins.compose.compiler) apply false
+    alias(libs.plugins.dokka) apply false
     id ("maven-publish")
-    //id("io.github.gradle-nexus.publish-plugin") version "1.1.0"
 }
 
 apply { from ("${rootDir}/publish-root.gradle") }
 
 subprojects {
+    val enable_asan: Boolean by extra(false)
+
     group = "org.androidaudioplugin"
     repositories {
         google()
