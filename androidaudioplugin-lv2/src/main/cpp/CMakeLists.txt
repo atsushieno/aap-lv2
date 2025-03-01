@@ -6,18 +6,11 @@ cmake_minimum_required(VERSION 3.18)
 
 project(androidaudioplugin-lv2 VERSION 0.1 LANGUAGES C CXX)
 
+find_package (androidaudioplugin REQUIRED CONFIG)
+
 set(DEPBASE ../../../../external)
 #get_filename_component (AAPDIR "${DEPBASE}/aap-core" ABSOLUTE)
 set(AAPDIR ${DEPBASE}/aap-core)
-
-if (ANDROID)
-if (NOT (BUILD_WITH_PREFAB))
-link_directories (
-		# FIXME: do not reference `debug` directory.
-		"${AAPDIR}/androidaudioplugin/build/intermediates/merged_native_libs/debug/out/lib/${CMAKE_ANDROID_ARCH_ABI}"
-)
-endif ()
-endif (ANDROID)
 
 # set INCLUDE_DIRS and LIBRARY_DIRS
 
@@ -37,12 +30,12 @@ set (androidaudioplugin-lv2_INCLUDES
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set (androidaudioplugin-lv2_INCLUDES
-    ${DEPBASE}
-	${DEPBASE}/serd/src
-	${DEPBASE}/sord/src
-	${DEPBASE}/lilv/src
-	${androidaudioplugin-lv2_INCLUDES}
-	)
+		${DEPBASE}
+		${DEPBASE}/serd/src
+		${DEPBASE}/sord/src
+		${DEPBASE}/lilv/src
+		${androidaudioplugin-lv2_INCLUDES}
+)
 
 set (androidaudioplugin-lv2_SOURCES
 		"src/android-audio-plugin-lv2-bridge.cpp"
@@ -93,28 +86,7 @@ set (androidaudioplugin-lv2_SOURCES
 		"${DEPBASE}/sratom/src/sratom.c"
 		)
 
-
 add_library (androidaudioplugin-lv2 SHARED ${androidaudioplugin-lv2_SOURCES})
-
-# set LIBS
-
-if (ANDROID)
-	if (BUILD_WITH_PREFAB)
-		find_package (androidaudioplugin REQUIRED CONFIG)
-		set (androidaudioplugin-lv2_LIBS
-				android
-				log
-				androidaudioplugin::androidaudioplugin)
-	else (BUILD_WOTH_PREFAB)
-		set (androidaudioplugin-lv2_LIBS
-				android
-				log
-				androidaudioplugin)
-	endif (BUILD_WITH_PREFAB)
-else (ANDROID)
-	set (androidaudioplugin-lv2_LIBS
-			androidaudioplugin)
-endif (ANDROID)
 
 target_include_directories (androidaudioplugin-lv2
         PRIVATE
@@ -130,7 +102,12 @@ target_compile_options (androidaudioplugin-lv2
 		-DZIX_INTERNAL
         )
 
-target_link_libraries (androidaudioplugin-lv2 ${androidaudioplugin-lv2_LIBS})
+target_link_libraries (androidaudioplugin-lv2
+		PRIVATE
+		android
+		log
+		androidaudioplugin::androidaudioplugin
+		)
 
 # You can set it via build.gradle.
 if (${AAP_ENABLE_ASAN})
@@ -138,14 +115,11 @@ if (${AAP_ENABLE_ASAN})
             PUBLIC
             -fsanitize=address -fno-omit-frame-pointer
             )
-
     target_link_options(androidaudioplugin-lv2
             PUBLIC
             -fsanitize=address
             )
-
     set_target_properties(androidaudioplugin-lv2
             PROPERTIES LINK_FLAGS -fsanitize=address
             )
 endif()
-
