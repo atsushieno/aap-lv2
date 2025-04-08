@@ -71,8 +71,8 @@ jobs:
       with:
         name: aap-lv2-apps-and-libs
         path:
-          ./androidaudioplugin-lv2/build/outputs/aar/androidaudioplugin-lv2-debug.aar
-          ./aap-ayumi/build/outputs/apk/debug/aap-ayumi-debug.apk
+          ./*/build/outputs/aar/*.aar
+          ./aap-ayumi/build/outputs/apk/debug/*.apk
   
   osx-build:
     name: build on osx
