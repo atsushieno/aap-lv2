@@ -73,7 +73,8 @@ jobs:
         path: |
           ./*/build/outputs/aar/*.aar
           ./aap-ayumi/build/outputs/apk/debug/*.apk
-  
+          ./aap-ayumi/build/outputs/bundle/release/*.aab
+
   osx-build:
     name: build on osx
     runs-on: macos-14
