@@ -39,24 +39,10 @@ jobs:
         echo y | sudo apt-get install doxygen libgrpc++-dev libgrpc-dev libprotobuf-dev graphviz cmake ninja-build liblilv-dev gettext
     - name: build
       run: make
-    - name: upload artifact
-      if: success()
-      uses: actions/upload-artifact@v4
-      with:
-        name: debug-apk
-        path: |
-          ./app/build/outputs/apk/debug/*.apk
-          ./app/build/outputs/bundle/release/*.aab
-    - name: Create Release
-      uses: ncipollo/release-action@v1
-      if: success() && startsWith(github.ref, 'refs/tags/')
-      with:
-        artifacts: ./app/build/outputs/apk/debug/*.apk,./app/build/outputs/bundle/release/*.aab
-  
+
   osx-build:
     name: build on osx
     runs-on: macos-14
-    if: false
     steps:
     - name: checkout
       uses: actions/checkout@v4
@@ -86,5 +72,16 @@ jobs:
         brew install cmake doxygen ninja graphviz lilv gettext
     - name: build
       run: make
-      env:
-        ANDROID_SDK_ROOT: /Users/runner/Library/Android/sdk
+    - name: upload artifact
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: debug-apk
+        path: |
+          ./app/build/outputs/apk/debug/*.apk
+          ./app/build/outputs/bundle/release/*.aab
+    - name: Create Release
+      uses: ncipollo/release-action@v1
+      if: success() && startsWith(github.ref, 'refs/tags/')
+      with:
+        artifacts: ./app/build/outputs/apk/debug/*.apk,./app/build/outputs/bundle/release/*.aab
