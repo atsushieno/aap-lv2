@@ -22,7 +22,7 @@ build-non-app: \
 
 build-aap-core:
 	if [ ! -f external/aap-core/local.properties ] ; then \
-		if [ `uname` == "Darwin" ] ; then \
+		if [ `uname` = "Darwin" ] ; then \
 			echo "sdk.dir=$(HOME)/Library/Android/sdk" > external/aap-core/local.properties ; \
 		else \
 			echo "sdk.dir=$(HOME)/Android/Sdk" > external/aap-core/local.properties ; \
@@ -34,7 +34,7 @@ build-aap-core:
 
 create-local-prop:
 	if [ ! -f local.properties ] ; then \
-		if [ `uname` == "Darwin" ] ; then \
+		if [ `uname` = "Darwin" ] ; then \
 			echo "sdk.dir=$(HOME)/Library/Android/sdk" > local.properties ; \
 		else \
 			echo "sdk.dir=$(HOME)/Android/Sdk" > local.properties ; \
