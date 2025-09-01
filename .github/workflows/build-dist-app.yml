@@ -69,7 +69,7 @@ jobs:
         distribution: temurin
     - name: install deps
       run: |
-        brew install cmake doxygen ninja graphviz lilv gettext
+        brew install doxygen ninja graphviz lilv gettext
     - name: build
       run: make
     - name: upload artifact
