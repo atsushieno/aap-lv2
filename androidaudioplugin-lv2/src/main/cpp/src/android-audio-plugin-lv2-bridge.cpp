@@ -282,7 +282,7 @@ bool readMidi2Parameter(uint8_t *group, uint8_t* channel, uint8_t* key, uint8_t*
 }
 
 bool
-write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, aap_buffer_t *buffer) {
+write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, aap_buffer_t *buffer, int32_t frameCount) {
 
     int32_t aapInPort = ctx->mappings.aap_midi_in_port;
     void *src = buffer->get_buffer(*buffer, aapInPort);
@@ -421,11 +421,16 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, aap_buffer_t 
                     // FIXME: implement
                     continue;
                 case CMIDI2_STATUS_NOTE_OFF:
-                case CMIDI2_STATUS_NOTE_ON:
+                case CMIDI2_STATUS_NOTE_ON: {
+                    auto velocity16 = cmidi2_ump_get_midi2_note_velocity(ump);
+                    auto velocity7 = velocity16 / 0x200;
                     midiEventSize = 3;
                     midi1Bytes[1] = cmidi2_ump_get_midi2_note_note(ump);
-                    midi1Bytes[2] = cmidi2_ump_get_midi2_note_velocity(ump) / 0x200;
+                    midi1Bytes[2] = statusCode == CMIDI2_STATUS_NOTE_ON && velocity16 > 0 && velocity7 == 0
+                            ? 1
+                            : velocity7;
                     break;
+                }
                 case CMIDI2_STATUS_PAF:
                     midiEventSize = 3;
                     midi1Bytes[1] = cmidi2_ump_get_midi2_paf_note(ump);
@@ -478,9 +483,12 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, aap_buffer_t 
         if (!midiForge)
             continue;
 
-        auto frameRef = lv2_atom_forge_frame_time(
-                midiForge,
+        auto frameTime = static_cast<int64_t>(
                 (double) currentJRTimestamp / JR_TIMESTAMP_TICKS_PER_SECOND * ctx->sample_rate);
+        if (frameCount > 0 && frameTime >= frameCount)
+            frameTime = frameCount - 1;
+
+        auto frameRef = lv2_atom_forge_frame_time(midiForge, frameTime);
         auto atomRef = frameRef ? lv2_atom_forge_atom(midiForge, midiEventSize, ctx->urids.urid_midi_event_type) : 0;
         auto writeRef = atomRef ? lv2_atom_forge_write(midiForge, midi1Bytes, midiEventSize) : 0;
         if (!frameRef || !atomRef || !writeRef) {
@@ -553,7 +561,7 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
     // Convert AAP MIDI/MIDI2 messages into Atom Sequence of MidiEvent.
     // Here, we iterate over UMPs multiple times, which would look inefficient, but in practice
     // there would be only one MIDI port, and there would not be many MIDI in messages.
-    if (!write_midi2_events_as_midi1_to_lv2_forge(ctx, buffer))
+    if (!write_midi2_events_as_midi1_to_lv2_forge(ctx, buffer, frameCount))
         return;
 
     auto numFramesInBuffer = buffer->num_frames(*buffer);
