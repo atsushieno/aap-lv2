@@ -31,24 +31,24 @@ PORTCHECKER_AND (IS_ATOM_IN, IS_ATOM_PORT, IS_INPUT_PORT)
 
 PORTCHECKER_AND (IS_ATOM_OUT, IS_ATOM_PORT, IS_OUTPUT_PORT)
 
+static size_t getAtomPortBufferSize(AAPLV2PluginContext* ctx, int32_t port) {
+    auto explicitSize = ctx->explicit_port_buffer_sizes.find(port);
+    if (explicitSize != ctx->explicit_port_buffer_sizes.end())
+        return explicitSize->second;
+    return ctx->atom_buffer_size;
+}
 
 void resetMidiAtomBuffers(AAPLV2PluginContext* ctx, aap_buffer_t* buffer, std::map<int32_t, LV2_Atom_Sequence*> &map, bool isInput) {
     for (auto p : map) {
         lv2_atom_sequence_clear(p.second);
-        // it seems we have to keep those sequences clean and assign appropriate sizes.
-        auto bufferSize =
-                ctx->explicit_port_buffer_sizes.find(p.first) == ctx->explicit_port_buffer_sizes.end() ?
-                buffer->num_frames(*buffer) * sizeof(float) :
-                ctx->explicit_port_buffer_sizes[p.first];
+        auto bufferSize = getAtomPortBufferSize(ctx, p.first);
         auto *forge = isInput ? &ctx->midi_forges_in[p.first] : &ctx->midi_forges_out[p.first];
         lv2_atom_forge_set_buffer(forge, (uint8_t *) p.second, bufferSize);
-        // FIXME: do we need this? Feels unnecessary
-        //p.second->atom.size = bufferSize - sizeof(LV2_Atom);
+        if (isInput)
+            continue;
 
         LV2_Atom_Forge_Frame frame;
-        auto seqRef = lv2_atom_forge_sequence_head(forge, &frame, ctx->urids.urid_time_frame);
-        auto seq = (LV2_Atom_Sequence *) lv2_atom_forge_deref(forge, seqRef);
-        lv2_atom_sequence_clear(seq);
+        lv2_atom_forge_sequence_head(forge, &frame, ctx->urids.urid_time_frame);
         lv2_atom_forge_pop(forge, &frame);
     }
 }
@@ -61,11 +61,7 @@ void resetPatchAtomBuffer(AAPLV2PluginContext* ctx, aap_buffer_t* buffer, int32_
         buf = buffer->get_buffer(*buffer, ctx->mappings.lv2_to_aap_portmap[port]);
     auto seq = static_cast<LV2_Atom_Sequence*>(buf);
     lv2_atom_sequence_clear(seq);
-    // it seems we have to keep those sequences clean and assign appropriate sizes.
-    auto bufferSize =
-            ctx->explicit_port_buffer_sizes.find(port) == ctx->explicit_port_buffer_sizes.end() ?
-            buffer->num_frames(*buffer) * sizeof(float) :
-            ctx->explicit_port_buffer_sizes[port];
+    auto bufferSize = getAtomPortBufferSize(ctx, port);
     seq->atom.size = bufferSize - sizeof(LV2_Atom);
 }
 
@@ -311,6 +307,9 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, aap_buffer_t 
     // and treats as if it were always nullptr (flow analysis wise, it is always initialized to some value).
     LV2_Atom_Forge *midiForge;
     LV2_Atom_Sequence *midiSeq{nullptr};
+    std::map<int32_t, LV2_Atom_Forge_Frame> inputFrames{};
+    for (auto& p : ctx->midi_atom_inputs)
+        lv2_atom_forge_sequence_head(&ctx->midi_forges_in[p.first], &inputFrames[p.first], ctx->urids.urid_time_frame);
     auto &portmap = ctx->mappings.ump_group_to_atom_in_port;
 
     CMIDI2_UMP_SEQUENCE_FOREACH((uint8_t*) src + sizeof(AAPMidiBufferHeader), aapmb->length, iter) {
@@ -469,8 +468,7 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, aap_buffer_t 
         }
 
         if (!midiForge)
-            // No MIDI Atom port, nowhere to write MIDI messages.
-            return true;
+            continue;
 
         lv2_atom_forge_frame_time(midiForge, (double) currentJRTimestamp / JR_TIMESTAMP_TICKS_PER_SECOND * ctx->sample_rate);
         lv2_atom_forge_atom(midiForge, midiEventSize, ctx->urids.urid_midi_event_type);
@@ -478,6 +476,9 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, aap_buffer_t 
 
         midiSeq->atom.size = midiForge->offset - sizeof(LV2_Atom);
     }
+
+    for (auto& p : ctx->midi_atom_inputs)
+        lv2_atom_forge_pop(&ctx->midi_forges_in[p.first], &inputFrames[p.first]);
 
     return true;
 }
