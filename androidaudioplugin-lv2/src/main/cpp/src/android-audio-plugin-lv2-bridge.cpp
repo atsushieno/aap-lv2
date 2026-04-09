@@ -87,6 +87,14 @@ void allocatePortBuffers(AndroidAudioPlugin *plugin, aap_buffer_t *buffer) {
                 ctx->mappings.aap_midi_out_port = i;
         }
     }
+    if (ctx->mappings.aap_midi_in_port >= 0)
+        ctx->atom_buffer_size = std::max(
+                ctx->atom_buffer_size,
+                buffer->get_buffer_size(*buffer, ctx->mappings.aap_midi_in_port));
+    if (ctx->mappings.aap_midi_out_port >= 0)
+        ctx->atom_buffer_size = std::max(
+                ctx->atom_buffer_size,
+                buffer->get_buffer_size(*buffer, ctx->mappings.aap_midi_out_port));
 
     if (!ctx->dummy_raw_buffer)
         ctx->dummy_raw_buffer = calloc(buffer->num_frames(*buffer) * sizeof(float), 1);
@@ -433,10 +441,10 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, aap_buffer_t 
                         midiEventSize = 8;
                         midi1Bytes[6] = midi1Bytes[0]; // copy
                         midi1Bytes[7] = cmidi2_ump_get_midi2_program_program(ump);
-                        midi1Bytes[0] = midi1Bytes[6] & 0xF + CMIDI2_STATUS_CC;
+                        midi1Bytes[0] = (midi1Bytes[6] & 0xF) + CMIDI2_STATUS_CC;
                         midi1Bytes[1] = 0; // Bank MSB
                         midi1Bytes[2] = cmidi2_ump_get_midi2_program_bank_msb(ump);
-                        midi1Bytes[3] = midi1Bytes[6] & 0xF + CMIDI2_STATUS_CC;
+                        midi1Bytes[3] = (midi1Bytes[6] & 0xF) + CMIDI2_STATUS_CC;
                         midi1Bytes[4] = 32; // Bank LSB
                         midi1Bytes[5] = cmidi2_ump_get_midi2_program_bank_lsb(ump);
                     } else {
@@ -470,9 +478,17 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, aap_buffer_t 
         if (!midiForge)
             continue;
 
-        lv2_atom_forge_frame_time(midiForge, (double) currentJRTimestamp / JR_TIMESTAMP_TICKS_PER_SECOND * ctx->sample_rate);
-        lv2_atom_forge_atom(midiForge, midiEventSize, ctx->urids.urid_midi_event_type);
-        lv2_atom_forge_write(midiForge, midi1Bytes, midiEventSize);
+        auto frameRef = lv2_atom_forge_frame_time(
+                midiForge,
+                (double) currentJRTimestamp / JR_TIMESTAMP_TICKS_PER_SECOND * ctx->sample_rate);
+        auto atomRef = frameRef ? lv2_atom_forge_atom(midiForge, midiEventSize, ctx->urids.urid_midi_event_type) : 0;
+        auto writeRef = atomRef ? lv2_atom_forge_write(midiForge, midi1Bytes, midiEventSize) : 0;
+        if (!frameRef || !atomRef || !writeRef) {
+            aap::a_log_f(AAP_LOG_LEVEL_WARN, AAP_LV2_TAG,
+                         "Dropping MIDI event due to Atom forge overflow on LV2 port %d (size=%u, buffer=%zu)",
+                         atomMidiIn, midiEventSize, getAtomPortBufferSize(ctx, atomMidiIn));
+            break;
+        }
 
         midiSeq->atom.size = midiForge->offset - sizeof(LV2_Atom);
     }
