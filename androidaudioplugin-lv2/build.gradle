@@ -1,10 +1,12 @@
 plugins {
     id 'com.android.library'
     id 'kotlin-android'
-    id 'maven-publish'
+    id 'com.vanniktech.maven.publish'
     id 'org.jetbrains.dokka'
     id 'signing'
 }
+
+version = libs.versions.aap.lv2.get()
 
 android {
     namespace 'org.androidaudioplugin.lv2'
@@ -84,3 +86,34 @@ dependencies {
 }
 
 apply from: "../publish-pom.gradle"
+
+def gitProjectName = "aap-lv2"
+def packageUrl = "https://github.com/atsushieno/${gitProjectName}"
+
+mavenPublishing {
+    publishToMavenCentral()
+    if (project.hasProperty("mavenCentralUsername") || System.getenv("ORG_GRADLE_PROJECT_mavenCentralUsername") != null)
+        signAllPublications()
+    coordinates(group.toString(), project.name, version.toString())
+    pom {
+        name.set(project.name)
+        description.set("AndroidAudioPlugin - LV2")
+        url.set(packageUrl)
+        scm {
+            url.set(packageUrl)
+        }
+        licenses {
+            license {
+                name.set("the MIT License")
+                url.set("${packageUrl}/blob/main/LICENSE")
+            }
+        }
+        developers {
+            developer {
+                id.set("atsushieno")
+                name.set("Atsushi Eno")
+                email.set("atsushieno@gmail.com")
+            }
+        }
+    }
+}

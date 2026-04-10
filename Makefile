@@ -51,4 +51,4 @@ build-java-core: create-local-prop
 	ANDROID_SDK_ROOT=$(ANDROID_SDK_ROOT) ./gradlew :androidaudioplugin-lv2:build :androidaudioplugin-lv2:publishToMavenLocal
 
 publish: 
-	ANDROID_SDK_ROOT=$(ANDROID_SDK_ROOT) ./gradlew publish
+	ANDROID_SDK_ROOT=$(ANDROID_SDK_ROOT) ./gradlew publishToMavenCentral
