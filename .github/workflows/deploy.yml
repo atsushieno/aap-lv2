@@ -24,8 +24,10 @@ jobs:
       - name: apt install
         run: |
           echo y | sudo apt-get install doxygen libgrpc++-dev libgrpc-dev libprotobuf-dev protobuf-compiler protobuf-compiler-grpc graphviz cmake ninja-build liblilv-dev
+      - name: build prerequisites
+        run: make build-aap-core build-lv2-importer create-local-prop
       - name: publish
-        run: make build-and-publish
+        run: make publish
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
