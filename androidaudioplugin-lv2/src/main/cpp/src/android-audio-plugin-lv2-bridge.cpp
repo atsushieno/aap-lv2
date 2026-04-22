@@ -338,10 +338,10 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, aap_buffer_t 
         // update time info if it is a utility message, and skip Atom event emission.
         if (messageType == CMIDI2_MESSAGE_TYPE_UTILITY) {
             switch (statusCode) {
-            case CMIDI2_JR_CLOCK:
+            case CMIDI2_UTILITY_STATUS_JR_CLOCK:
                 // FIXME: take JR_CLOCK into consideration
                 break;
-            case CMIDI2_JR_TIMESTAMP:
+            case CMIDI2_UTILITY_STATUS_JR_TIMESTAMP:
                 currentJRTimestamp += cmidi2_ump_get_jr_timestamp_timestamp(ump);
                 break;
             }
@@ -484,7 +484,7 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, aap_buffer_t 
             continue;
 
         auto frameTime = static_cast<int64_t>(
-                (double) currentJRTimestamp / JR_TIMESTAMP_TICKS_PER_SECOND * ctx->sample_rate);
+                (double) currentJRTimestamp / CMIDI2_JR_TIMESTAMP_TICKS_PER_SECOND * ctx->sample_rate);
         if (frameCount > 0 && frameTime >= frameCount)
             frameTime = frameCount - 1;
 
