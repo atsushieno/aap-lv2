@@ -383,102 +383,11 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, aap_buffer_t 
             continue;
         }
 
-        // Otherwise - MIDI message. Downconvert from UMP to bytestream.
-
-        uint32_t midiEventSize = 3;
-        uint64_t sysex7;
-
-        midi1Bytes[0] = statusCode | cmidi2_ump_get_channel(ump);
-
-        switch (messageType) {
-        case CMIDI2_MESSAGE_TYPE_SYSTEM:
-            midiEventSize = 1;
-            switch (statusCode) {
-            case 0xF1:
-            case 0xF3:
-            case 0xF9:
-                midi1Bytes[1] = cmidi2_ump_get_system_message_byte2(ump);
-                midiEventSize = 2;
-                break;
-            }
-            break;
-        case CMIDI2_MESSAGE_TYPE_MIDI_1_CHANNEL:
-            midi1Bytes[1] = cmidi2_ump_get_midi1_byte2(ump);
-            switch (statusCode) {
-            case 0xC0:
-            case 0xD0:
-                midiEventSize = 2;
-                break;
-            default:
-                midi1Bytes[2] = cmidi2_ump_get_midi1_byte3(ump);
-                break;
-            }
-            break;
-        case CMIDI2_MESSAGE_TYPE_MIDI_2_CHANNEL:
-            switch (statusCode) {
-                case CMIDI2_STATUS_RPN:
-                case CMIDI2_STATUS_NRPN:
-                    // FIXME: implement
-                    continue;
-                case CMIDI2_STATUS_NOTE_OFF:
-                case CMIDI2_STATUS_NOTE_ON: {
-                    auto velocity16 = cmidi2_ump_get_midi2_note_velocity(ump);
-                    auto velocity7 = velocity16 / 0x200;
-                    midiEventSize = 3;
-                    midi1Bytes[1] = cmidi2_ump_get_midi2_note_note(ump);
-                    midi1Bytes[2] = statusCode == CMIDI2_STATUS_NOTE_ON && velocity16 > 0 && velocity7 == 0
-                            ? 1
-                            : velocity7;
-                    break;
-                }
-                case CMIDI2_STATUS_PAF:
-                    midiEventSize = 3;
-                    midi1Bytes[1] = cmidi2_ump_get_midi2_paf_note(ump);
-                    midi1Bytes[2] = cmidi2_ump_get_midi2_paf_data(ump) / 0x2000000;
-                    break;
-                case CMIDI2_STATUS_CC:
-                    midiEventSize = 3;
-                    midi1Bytes[1] = cmidi2_ump_get_midi2_cc_index(ump);
-                    midi1Bytes[2] = cmidi2_ump_get_midi2_cc_data(ump) / 0x2000000;
-                    break;
-                case CMIDI2_STATUS_PROGRAM:
-                    if (cmidi2_ump_get_midi2_program_options(ump) == 1) {
-                        midiEventSize = 8;
-                        midi1Bytes[6] = midi1Bytes[0]; // copy
-                        midi1Bytes[7] = cmidi2_ump_get_midi2_program_program(ump);
-                        midi1Bytes[0] = (midi1Bytes[6] & 0xF) + CMIDI2_STATUS_CC;
-                        midi1Bytes[1] = 0; // Bank MSB
-                        midi1Bytes[2] = cmidi2_ump_get_midi2_program_bank_msb(ump);
-                        midi1Bytes[3] = (midi1Bytes[6] & 0xF) + CMIDI2_STATUS_CC;
-                        midi1Bytes[4] = 32; // Bank LSB
-                        midi1Bytes[5] = cmidi2_ump_get_midi2_program_bank_lsb(ump);
-                    } else {
-                        midiEventSize = 2;
-                        midi1Bytes[1] = cmidi2_ump_get_midi2_program_program(ump);
-                    }
-                    break;
-                case CMIDI2_STATUS_CAF:
-                    midiEventSize = 2;
-                    midi1Bytes[1] = cmidi2_ump_get_midi2_caf_data(ump);
-                    break;
-                case CMIDI2_STATUS_PITCH_BEND:
-                    midiEventSize = 3;
-                    auto pitchBendV1 = cmidi2_ump_get_midi2_pitch_bend_data(ump) / 0x40000;
-                    midi1Bytes[1] = pitchBendV1 % 0x80;
-                    midi1Bytes[2] = pitchBendV1 / 0x80;
-                    break;
-                // skip for other status bytes; we cannot support them.
-            }
-            break;
-        case CMIDI2_MESSAGE_TYPE_SYSEX7:
-            midiEventSize = 1 + cmidi2_ump_get_sysex7_num_bytes(ump);
-            sysex7 = cmidi2_ump_read_uint64_bytes(ump);
-            for (int i = 0; i < midiEventSize - 1; i++)
-                midi1Bytes[i] = cmidi2_ump_get_byte_from_uint64(sysex7, 2 + i);
-            break;
-        case CMIDI2_MESSAGE_TYPE_SYSEX8_MDS:
-            break;
-        }
+        // Otherwise - MIDI message. Downconvert from UMP to bytestream using the same helper path
+        // that AAPInstrumentSample relies on.
+        auto midiEventSize = cmidi2_convert_single_ump_to_midi1(midi1Bytes, sizeof(midi1Bytes), ump);
+        if (midiEventSize <= 0)
+            continue;
 
         if (!midiForge)
             continue;
