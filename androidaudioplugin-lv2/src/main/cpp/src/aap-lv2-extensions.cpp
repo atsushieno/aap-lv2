@@ -267,7 +267,8 @@ void aap_lv2_set_state(aap_state_extension_t* ext, AndroidAudioPlugin* plugin, a
     LilvState *state = lilv_state_new_from_string(l->world, &l->features.urid_map_feature_data, (const char*) input->data);
     auto features = l->stateFeaturesList();
     lilv_state_restore(state, l->instance, aap_lv2_set_port_value, l, 0, features.get());
-    lilv_state_delete(l->world, state);
+    lilv_state_free(state);
+    l->markAllParameterValuesDirty();
 }
 
 // Presets extension
@@ -284,7 +285,6 @@ int32_t aap_lv2_on_preset_loaded(Jalv* jalv, const LilvNode* node, const LilvNod
     strncpy(preset.name, name, AAP_PRESETS_EXTENSION_MAX_NAME_LENGTH);
     jalv->presets.emplace_back(std::make_unique<AAPPresetAndLv2Binary>(preset, strdup(stateData)));
     aap::a_log_f(AAP_LOG_LEVEL_DEBUG, "AAP-LV2", "aap_lv2_on_preset_loaded. %s: %s", name, lilv_node_as_string(node));
-    free((void *) name);
     free(stateData);
     lilv_state_free(state);
     return 0;
@@ -324,9 +324,11 @@ void aap_lv2_set_preset_index(aap_presets_extension_t* ext, AndroidAudioPlugin* 
                                                     &ctx->features.urid_map_feature_data,
                                                     (const char *) p->data);
             lilv_state_restore(state, ctx->instance, aap_lv2_set_port_value, ctx, 0, ctx->stateFeaturesList().get());
+            lilv_state_free(state);
             break;
         }
     }
+    ctx->markAllParameterValuesDirty();
 }
 
 // parameters extension

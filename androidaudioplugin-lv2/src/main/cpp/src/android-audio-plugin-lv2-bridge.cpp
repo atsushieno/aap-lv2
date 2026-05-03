@@ -112,6 +112,7 @@ void allocatePortBuffers(AndroidAudioPlugin *plugin, aap_buffer_t *buffer) {
     if (ctx->control_buffer_pointers)
         free(ctx->control_buffer_pointers);
     ctx->control_buffer_pointers = static_cast<float *>(calloc(numLV2Ports, sizeof(float)));
+    ctx->markAllParameterValuesDirty();
 
     int32_t numLV2MidiInPorts = 0;
     int32_t numLV2MidiOutPorts = 0;
@@ -420,9 +421,52 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, aap_buffer_t 
 bool
 read_forge_events_as_midi2_events(AAPLV2PluginContext* ctx, aap_buffer_t * buffer) {
     int32_t aapOutPort = ctx->mappings.aap_midi_out_port;
-    void *dst = buffer->get_buffer(*buffer, aapOutPort);
+    if (aapOutPort < 0)
+        return true;
 
-    // FIXME: implement
+    auto* header = static_cast<AAPMidiBufferHeader*>(buffer->get_buffer(*buffer, aapOutPort));
+    if (!header)
+        return false;
+
+    header->length = 0;
+    auto outputCapacity = buffer->get_buffer_size(*buffer, aapOutPort);
+    if (outputCapacity <= static_cast<int32_t>(sizeof(AAPMidiBufferHeader)))
+        return true;
+
+    auto* outputBytes = reinterpret_cast<uint8_t*>(header) + sizeof(AAPMidiBufferHeader);
+    auto remainingCapacity = static_cast<size_t>(outputCapacity - sizeof(AAPMidiBufferHeader));
+    size_t written = 0;
+
+    auto writeParameter = [&](int32_t parameterId, double minValue, double maxValue, double value) {
+        if (written + 16 > remainingCapacity)
+            return false;
+        auto* message = reinterpret_cast<uint32_t*>(outputBytes + written);
+        aapMidi2ParameterSysex8(message, message + 1, message + 2, message + 3,
+                                0, 0, 0, 0,
+                                static_cast<uint16_t>(parameterId),
+                                aapParameterPlainToTransportUint32(minValue, maxValue, value));
+        written += 16;
+        return true;
+    };
+
+    for (auto* parameter : ctx->aapParams) {
+        auto parameterId = parameter->stable_id;
+        if (parameterId < 0)
+            continue;
+        if (parameterId >= static_cast<int32_t>(ctx->last_emitted_parameter_values.size()))
+            continue;
+
+        auto currentValue = ctx->control_buffer_pointers[parameterId];
+        auto previousValue = ctx->last_emitted_parameter_values[parameterId];
+        if (!ctx->emit_all_parameter_values && currentValue == previousValue)
+            continue;
+        if (!writeParameter(parameterId, parameter->min_value, parameter->max_value, currentValue))
+            break;
+        ctx->last_emitted_parameter_values[parameterId] = currentValue;
+    }
+
+    header->length = static_cast<uint32_t>(written);
+    ctx->emit_all_parameter_values = false;
 
     return true;
 }

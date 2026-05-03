@@ -10,6 +10,7 @@
 #include <memory>
 #include <vector>
 #include <map>
+#include <limits>
 #include <string>
 
 #include <aap/unstable/logging.h>
@@ -262,6 +263,8 @@ public:
     std::vector<aap_parameter_info_t*> aapParams{};
     std::map<int32_t,int32_t> aapParamIdToEnumIndex{};
     std::vector<aap_parameter_enum_t*> aapEnums{};
+    std::vector<float> last_emitted_parameter_values{};
+    bool emit_all_parameter_values{true};
 
     std::unique_ptr<LV2_Feature *> stateFeaturesList() {
         LV2_Feature *list[]{
@@ -377,6 +380,12 @@ public:
 
     int32_t getAAPParameterCount() { return aapParams.size(); }
     aap_parameter_info_t getAAPParameterInfo(int index) { return *aapParams[index]; }
+    void markAllParameterValuesDirty() {
+        emit_all_parameter_values = true;
+        last_emitted_parameter_values.assign(
+                lilv_plugin_get_num_ports(plugin),
+                std::numeric_limits<float>::quiet_NaN());
+    }
     double getAAPParameterProperty(int32_t parameterId, int32_t propertyId) {
         for (auto info: aapParams) {
             if (info->stable_id == parameterId) {
