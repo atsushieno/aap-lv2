@@ -308,15 +308,9 @@ void aap_lv2_get_preset(aap_presets_extension_t* ext, AndroidAudioPlugin* plugin
     if (callback)
         callback(callbackContext, plugin);
 }
-int32_t aap_lv2_get_preset_index(aap_presets_extension_t* ext, AndroidAudioPlugin* plugin) {
-    auto ctx = ((AAPLV2PluginContext *) plugin->plugin_specific);
-    aap_lv2_ensure_preset_loaded(ctx);
-    return ctx->selected_preset_index;
-}
 void aap_lv2_set_preset_index(aap_presets_extension_t* ext, AndroidAudioPlugin* plugin, int32_t index) {
     auto ctx = ((AAPLV2PluginContext *) plugin->plugin_specific);
     aap_lv2_ensure_preset_loaded(ctx);
-    ctx->selected_preset_index = index;
 
     for (auto& p : ctx->presets) {
         if (p->preset.id == index) {
@@ -374,7 +368,6 @@ aap_state_extension_t state_ext{nullptr,
 aap_presets_extension_t presets_ext{nullptr,
                                     aap_lv2_get_preset_count,
                                     aap_lv2_get_preset,
-                                    aap_lv2_get_preset_index,
                                     aap_lv2_set_preset_index};
 
 void* aap_lv2_plugin_get_extension(AndroidAudioPlugin *plugin, const char *uri) {

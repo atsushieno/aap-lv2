@@ -183,9 +183,9 @@ int main(int argc, const char **argv)
 		LilvNodes* presets = lilv_plugin_get_related(plugin, presets_uri_node);
 		fprintf(xmlFP, "    <extensions>\n");
 		fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/plugin-info/v3' />\n");
-		fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/state/v3' />\n");
+		fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/state/v4' />\n");
 		if (lilv_nodes_size(presets) > 0) {
-			fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/presets/v3' />\n");
+			fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/presets/v4' />\n");
 		}
 		fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/parameters/v3' />\n");
 		fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/midi/v3' />\n");

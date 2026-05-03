@@ -257,7 +257,6 @@ public:
     LV2_Atom_Forge patch_forge_in{};
     LV2_Atom_Forge patch_forge_out{};
 
-    int32_t selected_preset_index{-1};
     std::vector<std::unique_ptr<AAPPresetAndLv2Binary>> presets{};
 
     std::vector<aap_parameter_info_t*> aapParams{};
@@ -465,8 +464,6 @@ int32_t aap_lv2_get_preset_count(aap_presets_extension_t* ext, AndroidAudioPlugi
 int32_t aap_lv2_get_preset_data_size(aap_presets_extension_t* ext, AndroidAudioPlugin* plugin, int32_t index);
 
 void aap_lv2_get_preset(aap_presets_extension_t* ext, AndroidAudioPlugin* plugin, int32_t index, aap_preset_t *destination, aapxs_completion_callback, void*);
-
-int32_t aap_lv2_get_preset_index(aap_presets_extension_t* ext, AndroidAudioPlugin* plugin);
 
 void aap_lv2_set_preset_index(aap_presets_extension_t* ext, AndroidAudioPlugin* plugin, int32_t index);
 
