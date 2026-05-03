@@ -275,7 +275,7 @@ void aap_lv2_plugin_activate(AndroidAudioPlugin *plugin) {
 }
 
 bool readMidi2Parameter(uint8_t *group, uint8_t* channel, uint8_t* key, uint8_t* extra,
-                        uint16_t *index, float *value, cmidi2_ump* ump) {
+                        uint16_t *index, uint32_t *value, cmidi2_ump* ump) {
     auto raw = (uint32_t*) ump;
     return aapReadMidi2ParameterSysex8(group, channel, key, extra, index, value,
                                        *raw, *(raw + 1), *(raw + 2), *(raw + 3));
@@ -350,13 +350,14 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, aap_buffer_t 
 
         uint8_t paramGroup, paramChannel, paramKey{0}, paramExtra{0};
         uint16_t paramId;
-        float paramValue;
+        uint32_t paramValue;
 
         if (readMidi2Parameter(&paramGroup, &paramChannel, &paramKey, &paramExtra, &paramId, &paramValue, ump)) {
             // Parameter changes.
             // They are used either for Atom Sequence or ControlPort.
-            auto paramValueU32 = *(uint32_t*) &paramValue;
-            float paramValueF32 = *(float *) (uint32_t *) &paramValueU32;
+            auto minValue = ctx->getAAPParameterProperty(paramId, AAP_PARAMETER_PROPERTY_MIN_VALUE);
+            auto maxValue = ctx->getAAPParameterProperty(paramId, AAP_PARAMETER_PROPERTY_MAX_VALUE);
+            float paramValueF32 = (float) aapParameterTransportUint32ToPlain(minValue, maxValue, paramValue);
             // FIXME: there should be some normative way to identify whether we should use LV2 patch or ControlPort...
             if (ctx->mappings.lv2_patch_in_port >= 0 &&
                 !ctx->mappings.lv2_index_to_port.contains(paramId)) {
