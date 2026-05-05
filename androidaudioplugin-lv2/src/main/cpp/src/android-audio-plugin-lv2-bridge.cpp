@@ -58,7 +58,7 @@ void resetPatchAtomBuffer(AAPLV2PluginContext* ctx, aap_buffer_t* buffer, int32_
         return;
     auto buf = ctx->explicitly_allocated_port_buffers[port];
     if (!buf)
-        buf = buffer->get_buffer(*buffer, ctx->mappings.lv2_to_aap_portmap[port]);
+        buf = buffer->get_buffer(buffer, ctx->mappings.lv2_to_aap_portmap[port]);
     auto seq = static_cast<LV2_Atom_Sequence*>(buf);
     lv2_atom_sequence_clear(seq);
     auto bufferSize = getAtomPortBufferSize(ctx, port);
@@ -90,14 +90,14 @@ void allocatePortBuffers(AndroidAudioPlugin *plugin, aap_buffer_t *buffer) {
     if (ctx->mappings.aap_midi_in_port >= 0)
         ctx->atom_buffer_size = std::max(
                 ctx->atom_buffer_size,
-                buffer->get_buffer_size(*buffer, ctx->mappings.aap_midi_in_port));
+                buffer->get_buffer_size(buffer, ctx->mappings.aap_midi_in_port));
     if (ctx->mappings.aap_midi_out_port >= 0)
         ctx->atom_buffer_size = std::max(
                 ctx->atom_buffer_size,
-                buffer->get_buffer_size(*buffer, ctx->mappings.aap_midi_out_port));
+                buffer->get_buffer_size(buffer, ctx->mappings.aap_midi_out_port));
 
     if (!ctx->dummy_raw_buffer)
-        ctx->dummy_raw_buffer = calloc(buffer->num_frames(*buffer) * sizeof(float), 1);
+        ctx->dummy_raw_buffer = calloc(buffer->num_frames(buffer) * sizeof(float), 1);
 
     // (1) For ports that has rsz:minimumSize, we also allocate local buffer.
     //     And if it is not an Atom port, it always memcpy.
@@ -168,7 +168,7 @@ void allocatePortBuffers(AndroidAudioPlugin *plugin, aap_buffer_t *buffer) {
             }
         }
         // (1) ^
-        else if (rszMinimumSize > buffer->num_frames(*buffer) * sizeof(float)) {
+        else if (rszMinimumSize > buffer->num_frames(buffer) * sizeof(float)) {
             if (ctx->explicitly_allocated_port_buffers[i])
                 free(ctx->explicitly_allocated_port_buffers[i]);
             ctx->explicitly_allocated_port_buffers[i] = calloc(rszMinimumSize, 1);
@@ -177,7 +177,7 @@ void allocatePortBuffers(AndroidAudioPlugin *plugin, aap_buffer_t *buffer) {
             ctx->mappings.lv2_index_to_port[lilv_port_get_index(lilvPlugin, lilvPort)] = i;
         } else {
             // (4) ^
-            while (currentAAPPortIndex < buffer->num_ports(*buffer)) {
+            while (currentAAPPortIndex < buffer->num_ports(buffer)) {
                 auto portInfo = aapPluginInfo.get_port(&aapPluginInfo, currentAAPPortIndex);
                 if (portInfo.content_type(&portInfo) == AAP_CONTENT_TYPE_AUDIO)
                     break;
@@ -230,7 +230,7 @@ void clearBufferForRun(AAPLV2PluginContext* ctx, aap_buffer_t *buffer) {
             // otherwise, it is either an audio port or CV port or whatever.
             int32_t aapPortIndex = ctx->mappings.lv2_to_aap_portmap[p];
             if (aapPortIndex >= 0)
-                lilv_instance_connect_port(instance, p, buffer->get_buffer(*buffer, aapPortIndex));
+                lilv_instance_connect_port(instance, p, buffer->get_buffer(buffer, aapPortIndex));
         }
         ctx->cached_buffer = buffer;
     }
@@ -242,7 +242,7 @@ void clearBufferForRun(AAPLV2PluginContext* ctx, aap_buffer_t *buffer) {
     resetPatchAtomBuffer(ctx, buffer, ctx->mappings.lv2_patch_out_port);
 }
 
-void aap_lv2_plugin_prepare(AndroidAudioPlugin *plugin, aap_buffer_t *buffer) {
+void aap_lv2_plugin_prepare(AndroidAudioPlugin *plugin, int32_t sampleRate, aap_buffer_t *buffer) {
     auto ctx = (AAPLV2PluginContext *) plugin->plugin_specific;
     if (ctx->instance_state == AAP_LV2_INSTANCE_STATE_ERROR)
         return;
@@ -251,6 +251,9 @@ void aap_lv2_plugin_prepare(AndroidAudioPlugin *plugin, aap_buffer_t *buffer) {
         ctx->instance_state = AAP_LV2_INSTANCE_STATE_ERROR;
         return;
     }
+
+    // We set this here, but LV2 requires sample rate at instantiation time.
+    ctx->sample_rate = sampleRate;
 
     allocatePortBuffers(plugin, buffer);
     clearBufferForRun(ctx, buffer);
@@ -286,7 +289,7 @@ bool
 write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, aap_buffer_t *buffer, int32_t frameCount) {
 
     int32_t aapInPort = ctx->mappings.aap_midi_in_port;
-    void *src = buffer->get_buffer(*buffer, aapInPort);
+    void *src = buffer->get_buffer(buffer, aapInPort);
 
     if (src == nullptr) {
         aap::a_log_f(AAP_LOG_LEVEL_ERROR, AAP_LV2_TAG, "AAP input port %d is not assigned a valid buffer.", aapInPort);
@@ -424,12 +427,12 @@ read_forge_events_as_midi2_events(AAPLV2PluginContext* ctx, aap_buffer_t * buffe
     if (aapOutPort < 0)
         return true;
 
-    auto* header = static_cast<AAPMidiBufferHeader*>(buffer->get_buffer(*buffer, aapOutPort));
+    auto* header = static_cast<AAPMidiBufferHeader*>(buffer->get_buffer(buffer, aapOutPort));
     if (!header)
         return false;
 
     header->length = 0;
-    auto outputCapacity = buffer->get_buffer_size(*buffer, aapOutPort);
+    auto outputCapacity = buffer->get_buffer_size(buffer, aapOutPort);
     if (outputCapacity <= static_cast<int32_t>(sizeof(AAPMidiBufferHeader)))
         return true;
 
@@ -518,7 +521,7 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
     if (!write_midi2_events_as_midi1_to_lv2_forge(ctx, buffer, frameCount))
         return;
 
-    auto numFramesInBuffer = buffer->num_frames(*buffer);
+    auto numFramesInBuffer = buffer->num_frames(buffer);
     if (numFramesInBuffer < frameCount) {
         aap::a_log_f(AAP_LOG_LEVEL_ERROR, AAP_LV2_TAG, "frameCount passed to process() function is larger than num_frames() in aap_buffer_t.");
         frameCount = numFramesInBuffer;
@@ -577,7 +580,6 @@ void aap_lv2_plugin_deactivate(AndroidAudioPlugin *plugin) {
 AndroidAudioPlugin *aap_lv2_plugin_new(
         AndroidAudioPluginFactory *pluginFactory,
         const char *pluginUniqueID,
-        int sampleRate,
         AndroidAudioPluginHost *host);
 
 void aap_lv2_plugin_delete(

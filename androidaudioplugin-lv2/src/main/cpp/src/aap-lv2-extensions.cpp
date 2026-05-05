@@ -192,7 +192,7 @@ const void* aap_lv2_get_port_value(
     int index = lilv_port_get_index(l->plugin, port);
 
     // FIXME: preserve buffer in context, and retrieve from there.
-    auto data = l->cached_buffer->get_buffer(*l->cached_buffer, index);
+    auto data = l->cached_buffer->get_buffer(l->cached_buffer, index);
 
     // FIXME: implement correctly
     *size = sizeof(float);
@@ -212,7 +212,7 @@ void aap_lv2_set_port_value(
     if (lv2Port >= 0) {
         auto aapPort = l->mappings.lv2_to_aap_portmap[(int32_t) lv2Port];
         if (aapPort >= 0) {
-            auto data = l->cached_buffer->get_buffer(*l->cached_buffer, aapPort);
+            auto data = l->cached_buffer->get_buffer(l->cached_buffer, aapPort);
             memcpy(data, value, size);
         } else {
             // it is hopefully a float ControlPort...
@@ -407,7 +407,6 @@ jalv_worker_finish(JalvWorker* worker);
 AndroidAudioPlugin *aap_lv2_plugin_new(
         AndroidAudioPluginFactory *pluginFactory,
         const char *pluginUniqueID,
-        int sampleRate,
         AndroidAudioPluginHost *host) {
     aap::a_log_f(AAP_LOG_LEVEL_INFO, AAP_LV2_TAG, "Instantiating aap-lv2 plugin %s", pluginUniqueID);
 
@@ -444,7 +443,7 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
 
     aap::a_log_f(AAP_LOG_LEVEL_INFO, AAP_LV2_TAG, "Plugin %s is valid, ready to instantiate.", pluginUniqueID);
 
-    auto ctx = new AAPLV2PluginContext(host, statics, world, plugin, pluginUniqueID, sampleRate);
+    auto ctx = new AAPLV2PluginContext(host, statics, world, plugin, pluginUniqueID);
 
     ctx->features.urid_map_feature_data.handle = ctx;
     ctx->features.urid_map_feature_data.map = map_uri;
@@ -508,7 +507,7 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
         return nullptr;
     }
 
-    LilvInstance *instance = lilv_plugin_instantiate(plugin, sampleRate, features);
+    LilvInstance *instance = lilv_plugin_instantiate(plugin, ctx->sample_rate, features);
     if (!instance) {
         aap::a_log_f(AAP_LOG_LEVEL_ERROR, AAP_LV2_TAG, "Failed to instantiate plugin: %s",
                      lilv_node_as_uri(pluginUriNode));

@@ -199,9 +199,9 @@ class AAPLV2PluginContext {
 public:
     AAPLV2PluginContext(AndroidAudioPluginHost *host, AAPLV2PluginContextStatics *statics,
                         LilvWorld *world,
-                        const LilvPlugin *plugin, const char *pluginUniqueId, int32_t sampleRate)
+                        const LilvPlugin *plugin, const char *pluginUniqueId)
             : aap_host(host), statics(statics), world(world), plugin(plugin),
-              aap_plugin_id(pluginUniqueId), sample_rate(sampleRate) {
+              aap_plugin_id(pluginUniqueId) {
         symap = symap_new();
         // They don't have default assignment...
         worker.threaded = false;
@@ -233,7 +233,7 @@ public:
     const LilvPlugin *plugin;
     LilvInstance *instance{nullptr};
     std::string aap_plugin_id{};
-    int32_t sample_rate;
+    int32_t sample_rate{48000};
 
     aap_buffer_t *cached_buffer{nullptr};
 
@@ -467,7 +467,7 @@ void aap_lv2_get_preset(aap_presets_extension_t* ext, AndroidAudioPlugin* plugin
 
 void aap_lv2_set_preset_index(aap_presets_extension_t* ext, AndroidAudioPlugin* plugin, int32_t index);
 
-void aap_lv2_plugin_prepare(AndroidAudioPlugin *plugin, aap_buffer_t *buffer);
+void aap_lv2_plugin_prepare(AndroidAudioPlugin *plugin, int32_t sampleRate, aap_buffer_t *buffer);
 
 void aap_lv2_plugin_activate(AndroidAudioPlugin *plugin);
 
