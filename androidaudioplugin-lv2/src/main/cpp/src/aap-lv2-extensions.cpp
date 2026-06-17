@@ -210,13 +210,17 @@ void aap_lv2_set_port_value(
     auto port = lilv_plugin_get_port_by_symbol(l->plugin, uri);
     auto lv2Port = lilv_port_get_index(l->plugin, port);
     if (lv2Port >= 0) {
-        auto aapPort = l->mappings.lv2_to_aap_portmap[(int32_t) lv2Port];
-        if (aapPort >= 0) {
-            auto data = l->cached_buffer->get_buffer(l->cached_buffer, aapPort);
+        // Note: lv2_to_aap_portmap only contains entries for ports that map to AAP audio/CV
+        // ports. Control ports are NOT inserted here, so we must look the entry up with find()
+        // instead of operator[] - the latter would value-initialize a missing key to 0, which is
+        // >= 0 and would wrongly take the cached_buffer branch (and mutate the map as a side
+        // effect). See also: https://github.com/atsushieno/aap-lv2/issues/7
+        auto it = l->mappings.lv2_to_aap_portmap.find((int32_t) lv2Port);
+        if (it != l->mappings.lv2_to_aap_portmap.end() && it->second >= 0 && l->cached_buffer) {
+            auto data = l->cached_buffer->get_buffer(l->cached_buffer, it->second);
             memcpy(data, value, size);
         } else {
             // it is hopefully a float ControlPort...
-            // also note: https://github.com/atsushieno/aap-lv2/issues/7
             auto data = l->control_buffer_pointers + lv2Port;
             memcpy(data, value, size);
         }
