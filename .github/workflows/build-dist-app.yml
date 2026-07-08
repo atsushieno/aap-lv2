@@ -37,8 +37,25 @@ jobs:
     - name: apt install
       run: |
         echo y | sudo apt-get install doxygen libgrpc++-dev libgrpc-dev libprotobuf-dev graphviz cmake ninja-build liblilv-dev gettext
+    - name: prepare sources
+      run: |
+        if [ -x scripts/prepare-ci.sh ]; then
+          scripts/prepare-ci.sh
+        fi
+    - name: build aap-core
+      run: ./gradlew publishToMavenLocal
+      working-directory: external/aap-lv2/external/aap-core
+    - name: build aap-lv2 metadata importer
+      run: |
+        cmake -E rm -rf tools/aap-import-lv2-metadata/build
+        cmake -S tools/aap-import-lv2-metadata -B tools/aap-import-lv2-metadata/build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+        cmake --build tools/aap-import-lv2-metadata/build
+      working-directory: external/aap-lv2
+    - name: build aap-lv2 library
+      run: ./gradlew :androidaudioplugin-lv2:build :androidaudioplugin-lv2:publishToMavenLocal
+      working-directory: external/aap-lv2
     - name: build
-      run: make
+      run: ./gradlew build bundle
 
   osx-build:
     name: build on osx
@@ -70,8 +87,31 @@ jobs:
     - name: install deps
       run: |
         brew install doxygen ninja graphviz lilv gettext
+    - name: prepare sources
+      run: |
+        if [ -x scripts/prepare-ci.sh ]; then
+          scripts/prepare-ci.sh
+        fi
+    - name: build aap-core
+      run: ./gradlew publishToMavenLocal
+      working-directory: external/aap-lv2/external/aap-core
+      env:
+        ANDROID_SDK_ROOT: /Users/runner/Library/Android/sdk
+    - name: build aap-lv2 metadata importer
+      run: |
+        cmake -E rm -rf tools/aap-import-lv2-metadata/build
+        cmake -S tools/aap-import-lv2-metadata -B tools/aap-import-lv2-metadata/build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+        cmake --build tools/aap-import-lv2-metadata/build
+      working-directory: external/aap-lv2
+    - name: build aap-lv2 library
+      run: ./gradlew :androidaudioplugin-lv2:build :androidaudioplugin-lv2:publishToMavenLocal
+      working-directory: external/aap-lv2
+      env:
+        ANDROID_SDK_ROOT: /Users/runner/Library/Android/sdk
     - name: build
-      run: make
+      run: ./gradlew build bundle
+      env:
+        ANDROID_SDK_ROOT: /Users/runner/Library/Android/sdk
     - name: upload artifact
       if: success()
       uses: actions/upload-artifact@v4

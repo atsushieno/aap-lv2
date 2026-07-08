@@ -10,9 +10,19 @@ There are also dedicated repos for non-trivial LV2 plugin ports and so on (not e
 
 aap-lv2 contains the base library AAR to be referenced by each plugin port (`androidaudioplugin-lv2`).
 
-There is a normative build script for GitHub Actions (see its `workflows.yml`), including dependencies.
+There are normative GitHub Actions workflows under `.github/workflows/`, including dependencies.
 
-For our local desktop development, `make` should take care of the builds.
+For local desktop development, build aap-core into Maven Local first, then build this repo:
+
+```
+$ cd external/aap-core
+$ ./gradlew publishToMavenLocal
+$ cd ../..
+$ cmake -E rm -rf tools/aap-import-lv2-metadata/build
+$ cmake -S tools/aap-import-lv2-metadata -B tools/aap-import-lv2-metadata/build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+$ cmake --build tools/aap-import-lv2-metadata/build
+$ ./gradlew build publishToMavenLocal
+```
 
 Our aap-lv2 plugin ports make use of the common GitHub Actions build setup as the [reusable workflows](https://docs.github.com/en/actions/using-workflows/reusing-workflows) too.
 
@@ -71,7 +81,7 @@ Note that this directory layout is different from source directory. In the sourc
 AAP needs `aap_metadata.xml` under `res/xml` directory. Creating one based on some existing port is not difficult, but it can also be generated from LV2 manifests in the plugin directory, using `aap-import-lv2-metadata` tool:
 
 ```
-$ ./tools/aap-import-lv2-metadata/aap-import-lv2-metadata [lv2path] [res_xml_path]
+$ ./tools/aap-import-lv2-metadata/build/aap-import-lv2-metadata [lv2path] [res_xml_path]
 ```
 
 The way how this tool generates metadata from LV2 manifests is described in depth later.

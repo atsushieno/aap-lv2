@@ -38,8 +38,16 @@ jobs:
     - name: apt install
       run: |
         echo y | sudo apt-get install doxygen libgrpc++-dev libgrpc-dev libprotobuf-dev protobuf-compiler protobuf-compiler-grpc graphviz cmake ninja-build liblilv-dev
+    - name: build aap-core
+      run: ./gradlew publishToMavenLocal
+      working-directory: external/aap-core
+    - name: build LV2 metadata importer
+      run: |
+        cmake -E rm -rf tools/aap-import-lv2-metadata/build
+        cmake -S tools/aap-import-lv2-metadata -B tools/aap-import-lv2-metadata/build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+        cmake --build tools/aap-import-lv2-metadata/build
     - name: build
-      run: make
+      run: ./gradlew build publishToMavenLocal
     - name: upload artifact
       if: success()
       uses: actions/upload-artifact@v4
@@ -80,7 +88,17 @@ jobs:
     - name: install deps
       run: |
         brew install doxygen ninja graphviz lilv grpc
+    - name: build aap-core
+      run: ./gradlew publishToMavenLocal
+      working-directory: external/aap-core
+      env:
+        ANDROID_SDK_ROOT: /Users/runner/Library/Android/sdk
+    - name: build LV2 metadata importer
+      run: |
+        cmake -E rm -rf tools/aap-import-lv2-metadata/build
+        cmake -S tools/aap-import-lv2-metadata -B tools/aap-import-lv2-metadata/build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+        cmake --build tools/aap-import-lv2-metadata/build
     - name: build
-      run: make
+      run: ./gradlew build publishToMavenLocal
       env:
         ANDROID_SDK_ROOT: /Users/runner/Library/Android/sdk
