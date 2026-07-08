@@ -39,8 +39,8 @@ jobs:
         echo y | sudo apt-get install doxygen libgrpc++-dev libgrpc-dev libprotobuf-dev graphviz cmake ninja-build liblilv-dev gettext
     - name: prepare sources
       run: |
-        if [ -x scripts/prepare-ci.sh ]; then
-          scripts/prepare-ci.sh
+        if [ -x scripts/prepare-sources.sh ]; then
+          scripts/prepare-sources.sh
         fi
     - name: build aap-core
       run: ./gradlew publishToMavenLocal
@@ -89,8 +89,8 @@ jobs:
         brew install doxygen ninja graphviz lilv gettext
     - name: prepare sources
       run: |
-        if [ -x scripts/prepare-ci.sh ]; then
-          scripts/prepare-ci.sh
+        if [ -x scripts/prepare-sources.sh ]; then
+          scripts/prepare-sources.sh
         fi
     - name: build aap-core
       run: ./gradlew publishToMavenLocal
