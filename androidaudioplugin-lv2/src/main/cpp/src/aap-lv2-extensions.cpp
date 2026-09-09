@@ -187,24 +187,22 @@ const void* aap_lv2_get_port_value(
 {
     auto l = (AAPLV2PluginContext *) user_data;
     auto uri = lilv_new_string(l->world, port_symbol);
-    auto port = lilv_plugin_get_port_by_symbol(l->plugin, uri);
+    auto index = lilv_port_get_index(l->plugin, lilv_plugin_get_port_by_symbol(l->plugin, uri));
     lilv_node_free(uri);
-    int index = lilv_port_get_index(l->plugin, port);
-
-    // FIXME: preserve buffer in context, and retrieve from there.
-    auto data = l->cached_buffer->get_buffer(l->cached_buffer, index);
-
-    // FIXME: implement correctly
     *size = sizeof(float);
     *type = l->urids.urid_atom_float_type;
-    return data;
+    return l->control_buffer_pointers + index;
 }
 
 void aap_lv2_set_port_value(
         const char* port_symbol, void* user_data, const void* value, uint32_t size, uint32_t type)
 {
     auto l = (AAPLV2PluginContext *) user_data;
-    assert(l->instance_state != AAP_LV2_INSTANCE_STATE_INITIAL); // must be at prepared or later.
+    // setState() before prepare(): the control-port buffer does not exist yet, so
+    // port values cannot be applied. Non-port state (the plugin's own restore())
+    // still runs.
+    if (!l->control_buffer_pointers)
+        return;
 
     auto uri = lilv_new_string(l->world, port_symbol);
     auto port = lilv_plugin_get_port_by_symbol(l->plugin, uri);
@@ -230,11 +228,13 @@ void aap_lv2_set_port_value(
     lilv_node_free(uri);
 }
 
-size_t aap_lv2_get_state_size(aap_state_extension_t* ext, AndroidAudioPlugin* plugin) {
-    auto l = (AAPLV2PluginContext *) plugin->plugin_specific;
+// Returns a heap-allocated Turtle string (free() by the caller), or nullptr on failure.
+static char* aap_lv2_build_state_string(AAPLV2PluginContext* l) {
     auto features = l->stateFeaturesList();
     LilvState *state = lilv_state_new_from_instance(l->plugin, l->instance, &l->features.urid_map_feature_data,
                                                     nullptr, nullptr, nullptr, nullptr, aap_lv2_get_port_value, l, 0, features.get());
+    if (!state)
+        return nullptr;
     auto nameNode = lilv_plugin_get_name(l->plugin);
     std::string stateUriBase{"urn:aap_state:"};
     auto nameChars = lilv_node_as_string(nameNode);
@@ -243,32 +243,44 @@ size_t aap_lv2_get_state_size(aap_state_extension_t* ext, AndroidAudioPlugin* pl
     lilv_node_free(nameNode);
     auto stateString = lilv_state_to_string(l->world, &l->features.urid_map_feature_data, &l->features.urid_unmap_feature_data,
                                             state, stateUri.c_str(), nullptr);
-    auto ret = strlen(stateString);
     lilv_state_delete(l->world, state);
+    return stateString;
+}
+
+size_t aap_lv2_get_state_size(aap_state_extension_t* ext, AndroidAudioPlugin* plugin) {
+    auto l = (AAPLV2PluginContext *) plugin->plugin_specific;
+    char* stateString = aap_lv2_build_state_string(l);
+    size_t ret = stateString ? strlen(stateString) : 0;
+    free(stateString);
     return ret;
 }
 
 void aap_lv2_get_state(aap_state_extension_t* ext, AndroidAudioPlugin* plugin, aap_state_t *result) {
     auto l = (AAPLV2PluginContext *) plugin->plugin_specific;
-    auto features = l->stateFeaturesList();
-    LilvState *state = lilv_state_new_from_instance(l->plugin, l->instance, &l->features.urid_map_feature_data,
-                                                    nullptr, nullptr, nullptr, nullptr, aap_lv2_get_port_value, l, 0, features.get());
-    auto nameNode = lilv_plugin_get_name(l->plugin);
-    std::string stateUriBase{"urn:aap_state:"};
-    auto nameChars = lilv_node_as_string(nameNode);
-    std::string nameString{nameChars};
-    std::string stateUri = stateUriBase + nameString;
-    lilv_node_free(nameNode);
-    auto stateString = lilv_state_to_string(l->world, &l->features.urid_map_feature_data, &l->features.urid_unmap_feature_data,
-                                            state, stateUri.c_str(), nullptr);
-    result->data = strdup(stateString);
+    char* stateString = aap_lv2_build_state_string(l);
+    if (!stateString) {
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, AAP_LV2_TAG,
+                     "aap_lv2_get_state: failed to serialize state for %s", l->aap_plugin_id.c_str());
+        result->data = strdup("");
+        result->data_size = 0;
+        return;
+    }
+    result->data = stateString;
     result->data_size = strlen(stateString);
-    lilv_state_delete(l->world, state);
 }
 
 void aap_lv2_set_state(aap_state_extension_t* ext, AndroidAudioPlugin* plugin, aap_state_t *input) {
     auto l = (AAPLV2PluginContext *) plugin->plugin_specific;
+    if (!input || !input->data || input->data_size == 0) {
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, AAP_LV2_TAG, "aap_lv2_set_state: empty state payload");
+        return;
+    }
     LilvState *state = lilv_state_new_from_string(l->world, &l->features.urid_map_feature_data, (const char*) input->data);
+    if (!state) {
+        aap::a_log_f(AAP_LOG_LEVEL_ERROR, AAP_LV2_TAG,
+                     "aap_lv2_set_state: could not parse LV2 state for %s", l->aap_plugin_id.c_str());
+        return;
+    }
     auto features = l->stateFeaturesList();
     lilv_state_restore(state, l->instance, aap_lv2_set_port_value, l, 0, features.get());
     lilv_state_free(state);
