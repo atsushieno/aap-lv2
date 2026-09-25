@@ -1,63 +1,64 @@
-
 plugins {
-    id 'com.android.application'
-    id 'kotlin-android'
+    alias(libs.plugins.android.application)
 }
 
+val enable_asan: Boolean by extra
+
 android {
-    compileSdk = libs.versions.android.compileSdk.get().toInteger()
+    namespace = "org.androidaudioplugin.aap_ayumi"
+    compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId "org.androidaudioplugin.aap_ayumi"
-        minSdk = libs.versions.android.minSdk.get().toInteger()
-        targetSdk = libs.versions.android.targetSdk.get().toInteger()
-        versionCode 1
-        versionName libs.versions.aap.lv2.get()
+        applicationId = "org.androidaudioplugin.aap_ayumi"
+        minSdk = libs.versions.android.minSdk.get().toInt()
+        targetSdk = libs.versions.android.targetSdk.get().toInt()
+        versionCode = 1
+        versionName = libs.versions.aap.lv2.get()
 
         externalNativeBuild {
             cmake {
                 // https://github.com/google/prefab/blob/bccf5a6a75b67add30afbb6d4f7a7c50081d2d86/api/src/main/kotlin/com/google/prefab/api/Android.kt#L243
-                arguments "-DANDROID_STL=c++_shared", "-DAAP_ENABLE_ASAN=" + (enable_asan ? "1" : "0")
+                arguments ("-DANDROID_STL=c++_shared", "-DAAP_ENABLE_ASAN=" + (if (enable_asan) "1" else "0"))
             }
         }
 
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    ndkVersion libs.versions.ndk.get()
+    ndkVersion = libs.versions.ndk.get()
 
     buildTypes {
         debug {
-            packagingOptions {
-                doNotStrip "**/*.so"
-            }
+            packaging.jniLibs.keepDebugSymbols.add("**/*.so")
         }
         release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            isMinifyEnabled = false
+            proguardFiles (getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 
     buildFeatures {
-        prefab true
+        prefab = true
     }
 
     externalNativeBuild {
         cmake {
-            version libs.versions.cmake.get()
-            path "src/main/cpp/CMakeLists.txt"
+            version = libs.versions.cmake.get()
+            path ("src/main/cpp/CMakeLists.txt")
         }
     }
 
-    packagingOptions {
-        if (enable_asan)
-            jniLibs.useLegacyPackaging = true
+    if (enable_asan)
+        packaging.jniLibs.useLegacyPackaging = true
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
-    namespace 'org.androidaudioplugin.aap_ayumi'
 }
 
 dependencies {
-    implementation project(':androidaudioplugin-lv2')
+    implementation (project(":androidaudioplugin-lv2"))
     implementation (libs.aap.core)
     implementation (libs.aap.ui.compose.app)
     implementation (libs.aap.ui.web)
@@ -81,6 +82,6 @@ dependencies {
 // Starting AGP 7.0.0-alpha05, AGP stopped caring build dependencies and it broke builds.
 // This is a forcible workarounds to build libandroidaudioplugin.so in prior to referencing it.
 gradle.projectsEvaluated {
-    tasks['buildCMakeDebug'].dependsOn(rootProject.project("androidaudioplugin-lv2").mergeDebugNativeLibs)
-    tasks['buildCMakeRelWithDebInfo'].dependsOn(rootProject.project("androidaudioplugin-lv2").mergeReleaseNativeLibs)
+    tasks["buildCMakeDebug"].dependsOn(rootProject.project("androidaudioplugin-lv2").tasks["mergeDebugNativeLibs"])
+    tasks["buildCMakeRelWithDebInfo"].dependsOn(rootProject.project("androidaudioplugin-lv2").tasks["mergeReleaseNativeLibs"])
 }

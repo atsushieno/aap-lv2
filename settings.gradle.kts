@@ -1,0 +1,40 @@
+pluginManagement {
+    repositories {
+        google()
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+dependencyResolutionManagement {
+    repositories {
+        mavenLocal()
+        google()
+        mavenCentral()
+        maven { url = uri("https://jitpack.io") } // required for compose-markdown...
+    }
+}
+
+rootProject.name = "aap-lv2"
+include(":androidaudioplugin-lv2", ":aap-ayumi")
+
+//  If you want to test aap-core locally, enable these local references
+//  (along with build.gradle.kts changes)
+/*
+include(":androidaudioplugin")
+include(":androidaudioplugin-testing")
+include(":androidaudioplugin-manager")
+include(":androidaudioplugin-samples-host-engine")
+include(":androidaudioplugin-ui-web")
+include(":androidaudioplugin-ui-compose")
+include(":androidaudioplugin-ui-compose-app")
+include(":androidaudioplugin-midi-device-service")
+
+project(":androidaudioplugin").projectDir = file("external/aap-core/androidaudioplugin")
+project(":androidaudioplugin-testing").projectDir = file("external/aap-core/androidaudioplugin-testing")
+project(":androidaudioplugin-manager").projectDir = file("external/aap-core/androidaudioplugin-manager")
+project(":androidaudioplugin-samples-host-engine").projectDir = file("external/aap-core/androidaudioplugin-samples-host-engine")
+project(":androidaudioplugin-ui-web").projectDir = file("external/aap-core/androidaudioplugin-ui-web")
+project(":androidaudioplugin-ui-compose").projectDir = file("external/aap-core/androidaudioplugin-ui-compose")
+project(":androidaudioplugin-ui-compose-app").projectDir = file("external/aap-core/androidaudioplugin-ui-compose-app")
+project(":androidaudioplugin-midi-device-service").projectDir = file("external/aap-core/androidaudioplugin-midi-device-service")
+*/
