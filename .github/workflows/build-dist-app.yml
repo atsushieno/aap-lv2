@@ -121,12 +121,12 @@ jobs:
       env:
         ANDROID_SDK_ROOT: /Users/runner/Library/Android/sdk
     - name: Sign app bundle
-      uses: r0adkll/sign-android-release@v1
+      uses: ilharp/sign-android-release@v2
       id: sign_app
       with:
-        releaseDirectory: app/build/outputs/bundle/release
-        signingKeyBase64: ${{ secrets.SIGNING_KEY_BASE64 }}
-        alias: ${{ secrets.SIGNING_KEY_ALIAS }}
+        releaseDir: app/build/outputs/bundle/release
+        signingKey: ${{ secrets.SIGNING_KEY_BASE64 }}
+        keyAlias: ${{ secrets.SIGNING_KEY_ALIAS }}
         keyStorePassword: ${{ secrets.SIGNING_KEY_STORE_PASSWORD }}
         keyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}
     - name: upload artifact
@@ -136,9 +136,9 @@ jobs:
         name: debug-apk
         path: |
           ./app/build/outputs/apk/debug/*.apk
-          ${{ steps.sign_app.outputs.signedReleaseFile }}
+          ${{ steps.sign_app.outputs.signedFile }}
     - name: Create Release
       uses: ncipollo/release-action@v1.21.0
       if: success() && startsWith(github.ref, 'refs/tags/')
       with:
-        artifacts: ./app/build/outputs/apk/debug/*.apk,${{ steps.sign_app.outputs.signedReleaseFile }}
+        artifacts: ./app/build/outputs/apk/debug/*.apk,${{ steps.sign_app.outputs.signedFile }}
