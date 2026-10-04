@@ -8,6 +8,7 @@
 #include <cstring>
 #include <cassert>
 #include <memory>
+#include <array>
 #include <vector>
 #include <map>
 #include <limits>
@@ -152,6 +153,7 @@ public:
     const int maxBlockLengthValue = 8192;
     LV2_Options_Option minBlockLengthOption;
     LV2_Options_Option maxBlockLengthOption;
+    std::array<LV2_Options_Option, 3> options{};
 
     LV2_Feature mapFeature{LV2_URID__map, &urid_map_feature_data};
     LV2_Feature unmapFeature{LV2_URID__unmap, &urid_unmap_feature_data};
@@ -166,7 +168,8 @@ public:
 void *aap_lv2_plugin_get_extension(AndroidAudioPlugin *plugin, const char *uri);
 
 struct AAPLV2URIDs {
-    LV2_URID urid_atom_sequence_type{0},
+    LV2_URID urid_atom_int_type{0}, urid_atom_long_type{0}, urid_atom_double_type{0},
+            urid_atom_sequence_type{0},
             urid_midi_event_type{0},
             urid_time_frame{0},
             urid_atom_float_type{0},
@@ -265,8 +268,8 @@ public:
     std::vector<float> last_emitted_parameter_values{};
     bool emit_all_parameter_values{true};
 
-    std::unique_ptr<LV2_Feature *> stateFeaturesList() {
-        LV2_Feature *list[]{
+    std::array<LV2_Feature*, 7> stateFeaturesList() {
+        return {{
                 &features.mapFeature,
                 &features.unmapFeature,
                 &features.logFeature,
@@ -274,11 +277,7 @@ public:
                 &features.threadSafeRestoreFeature,
                 &features.stateWorkerFeature,
                 nullptr
-        };
-        auto ptr = (LV2_Feature **) calloc(sizeof(LV2_Feature *), sizeof(list));
-        memcpy(ptr, list, sizeof(LV2_Feature *) * sizeof(list));
-        std::unique_ptr<LV2_Feature *> ret{ptr};
-        return ret;
+        }};
     }
 
     void registerParameter(const LilvPlugin* plugin, const LilvPort* port) {

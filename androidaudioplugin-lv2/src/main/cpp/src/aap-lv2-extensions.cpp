@@ -182,68 +182,66 @@ jalv_worker_emit_responses(JalvWorker* worker, LilvInstance* instance)
 
 // State extension
 
-const void* aap_lv2_get_port_value(
-        const char* port_symbol, void* user_data, uint32_t* size, uint32_t* type)
-{
-    auto l = (AAPLV2PluginContext *) user_data;
-    auto uri = lilv_new_string(l->world, port_symbol);
-    auto index = lilv_port_get_index(l->plugin, lilv_plugin_get_port_by_symbol(l->plugin, uri));
-    lilv_node_free(uri);
-    *size = sizeof(float);
-    *type = l->urids.urid_atom_float_type;
-    return l->control_buffer_pointers + index;
+// Lilv state port values are scalar controls, never audio/CV/Atom buffers.
+// An unprepared snapshot omits these values; plugin-owned state can still save.
+static const LilvPort* aap_lv2_state_control_port(AAPLV2PluginContext* context, const char* symbol) {
+    if (!context || !context->world || !context->plugin || !context->statics ||
+        !context->control_buffer_pointers || !symbol) return nullptr;
+    auto node = lilv_new_string(context->world, symbol);
+    if (!node) return nullptr;
+    auto port = lilv_plugin_get_port_by_symbol(context->plugin, node);
+    lilv_node_free(node);
+    if (!port || lilv_port_get_index(context->plugin, port) >= lilv_plugin_get_num_ports(context->plugin) ||
+        !context->IS_CONTROL_PORT(context->plugin, port)) return nullptr;
+    return port;
 }
 
-void aap_lv2_set_port_value(
-        const char* port_symbol, void* user_data, const void* value, uint32_t size, uint32_t type)
-{
-    auto l = (AAPLV2PluginContext *) user_data;
-    // setState() before prepare(): the control-port buffer does not exist yet, so
-    // port values cannot be applied. Non-port state (the plugin's own restore())
-    // still runs.
-    if (!l->control_buffer_pointers)
-        return;
+const void* aap_lv2_get_port_value(const char* symbol, void* userData, uint32_t* size, uint32_t* type) {
+    if (size) *size = 0;
+    if (type) *type = 0;
+    if (!size || !type) return nullptr;
+    auto context = static_cast<AAPLV2PluginContext*>(userData);
+    auto port = aap_lv2_state_control_port(context, symbol);
+    if (!port) return nullptr;
+    *size = sizeof(float);
+    *type = context->urids.urid_atom_float_type;
+    return context->control_buffer_pointers + lilv_port_get_index(context->plugin, port);
+}
 
-    auto uri = lilv_new_string(l->world, port_symbol);
-    auto port = lilv_plugin_get_port_by_symbol(l->plugin, uri);
-    auto lv2Port = lilv_port_get_index(l->plugin, port);
-    if (lv2Port >= 0) {
-        // Note: lv2_to_aap_portmap only contains entries for ports that map to AAP audio/CV
-        // ports. Control ports are NOT inserted here, so we must look the entry up with find()
-        // instead of operator[] - the latter would value-initialize a missing key to 0, which is
-        // >= 0 and would wrongly take the cached_buffer branch (and mutate the map as a side
-        // effect). See also: https://github.com/atsushieno/aap-lv2/issues/7
-        auto it = l->mappings.lv2_to_aap_portmap.find((int32_t) lv2Port);
-        if (it != l->mappings.lv2_to_aap_portmap.end() && it->second >= 0 && l->cached_buffer) {
-            auto data = l->cached_buffer->get_buffer(l->cached_buffer, it->second);
-            memcpy(data, value, size);
-        } else {
-            // it is hopefully a float ControlPort...
-            auto data = l->control_buffer_pointers + lv2Port;
-            memcpy(data, value, size);
-        }
+void aap_lv2_set_port_value(const char* symbol, void* userData, const void* value, uint32_t size, uint32_t type) {
+    auto context = static_cast<AAPLV2PluginContext*>(userData);
+    auto port = aap_lv2_state_control_port(context, symbol);
+    if (!port || !value || !type) return;
+    float control;
+    // Turtle presets may use integer or double literals. Convert numeric atoms
+    // to the ControlPort's float instead of copying their representation.
+    if (type == context->urids.urid_atom_float_type && size == sizeof(float)) {
+        memcpy(&control, value, sizeof(control));
+    } else if (type == context->urids.urid_atom_int_type && size == sizeof(int32_t)) {
+        int32_t number; memcpy(&number, value, sizeof(number)); control = static_cast<float>(number);
+    } else if (type == context->urids.urid_atom_long_type && size == sizeof(int64_t)) {
+        int64_t number; memcpy(&number, value, sizeof(number)); control = static_cast<float>(number);
+    } else if (type == context->urids.urid_atom_double_type && size == sizeof(double)) {
+        double number; memcpy(&number, value, sizeof(number)); control = static_cast<float>(number);
+    } else {
+        return;
     }
-    else
-        aap::a_log_f(AAP_LOG_LEVEL_WARN, AAP_LV2_TAG, "State contains invalid LV2 port specifier: %s", lilv_node_as_uri(uri));
-    lilv_node_free(uri);
+    context->control_buffer_pointers[lilv_port_get_index(context->plugin, port)] = control;
 }
 
 // Returns a heap-allocated Turtle string (free() by the caller), or nullptr on failure.
 static char* aap_lv2_build_state_string(AAPLV2PluginContext* l) {
     auto features = l->stateFeaturesList();
     LilvState *state = lilv_state_new_from_instance(l->plugin, l->instance, &l->features.urid_map_feature_data,
-                                                    nullptr, nullptr, nullptr, nullptr, aap_lv2_get_port_value, l, 0, features.get());
+                                                    nullptr, nullptr, nullptr, nullptr, aap_lv2_get_port_value, l, 0, features.data());
     if (!state)
         return nullptr;
-    auto nameNode = lilv_plugin_get_name(l->plugin);
-    std::string stateUriBase{"urn:aap_state:"};
-    auto nameChars = lilv_node_as_string(nameNode);
-    std::string nameString{nameChars};
-    std::string stateUri = stateUriBase + nameString;
-    lilv_node_free(nameNode);
+    // Display names may contain spaces or other characters forbidden in IRIs.
+    std::string stateUri = "urn:aap_state:";
+    stateUri += lilv_node_as_uri(lilv_plugin_get_uri(l->plugin));
     auto stateString = lilv_state_to_string(l->world, &l->features.urid_map_feature_data, &l->features.urid_unmap_feature_data,
                                             state, stateUri.c_str(), nullptr);
-    lilv_state_delete(l->world, state);
+    lilv_state_free(state);
     return stateString;
 }
 
@@ -282,7 +280,7 @@ void aap_lv2_set_state(aap_state_extension_t* ext, AndroidAudioPlugin* plugin, a
         return;
     }
     auto features = l->stateFeaturesList();
-    lilv_state_restore(state, l->instance, aap_lv2_set_port_value, l, 0, features.get());
+    lilv_state_restore(state, l->instance, aap_lv2_set_port_value, l, 0, features.data());
     lilv_state_free(state);
     l->markAllParameterValuesDirty();
 }
@@ -333,7 +331,7 @@ void aap_lv2_set_preset_index(aap_presets_extension_t* ext, AndroidAudioPlugin* 
             auto state = lilv_state_new_from_string(ctx->world,
                                                     &ctx->features.urid_map_feature_data,
                                                     (const char *) p->data);
-            lilv_state_restore(state, ctx->instance, aap_lv2_set_port_value, ctx, 0, ctx->stateFeaturesList().get());
+            lilv_state_restore(state, ctx->instance, aap_lv2_set_port_value, ctx, 0, ctx->stateFeaturesList().data());
             lilv_state_free(state);
             break;
         }
@@ -497,13 +495,11 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
                                           map_uri(ctx, LV2_ATOM__Int),
                                           &ctx->features.maxBlockLengthValue};
 
-    LV2_Options_Option options[3];
-
     // FIXME: adjust those variables at prepare() step.
-    options[0] = ctx->features.minBlockLengthOption;
-    options[1] = ctx->features.maxBlockLengthOption;
-    options[2] = LV2_Options_Option{LV2_OPTIONS_BLANK, 0, 0, 0, 0};
-    ctx->features.optionsFeature.data = &options;
+    ctx->features.options[0] = ctx->features.minBlockLengthOption;
+    ctx->features.options[1] = ctx->features.maxBlockLengthOption;
+    ctx->features.options[2] = LV2_Options_Option{LV2_OPTIONS_BLANK, 0, 0, 0, 0};
+    ctx->features.optionsFeature.data = ctx->features.options.data();
 
     LV2_Feature* features [] {
             &ctx->features.mapFeature,
@@ -537,6 +533,9 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
         ctx->urids.urid_midi_event_type = map->map(map->handle, LV2_MIDI__MidiEvent);
         ctx->urids.urid_time_frame = map->map(map->handle, LV2_ATOM__frameTime);
         ctx->urids.urid_atom_float_type = map->map(map->handle, LV2_ATOM__Float);
+        ctx->urids.urid_atom_int_type = map->map(map->handle, LV2_ATOM__Int);
+        ctx->urids.urid_atom_long_type = map->map(map->handle, LV2_ATOM__Long);
+        ctx->urids.urid_atom_double_type = map->map(map->handle, LV2_ATOM__Double);
         ctx->urids.urid_patch_set = map->map(map->handle, LV2_PATCH__Set);
         ctx->urids.urid_patch_property = map->map(map->handle, LV2_PATCH__property);
     }
