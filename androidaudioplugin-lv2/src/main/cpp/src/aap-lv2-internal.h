@@ -8,6 +8,7 @@
 #include <cstring>
 #include <cassert>
 #include <memory>
+#include <algorithm>
 #include <array>
 #include <vector>
 #include <map>
@@ -21,6 +22,7 @@
 #include <aap/ext/presets.h>
 #include <aap/ext/state.h>
 #include <aap/ext/plugin-info.h>
+#include <aap/ext/buses.h>
 
 #include "symap.h"
 #include "zix/sem.h"
@@ -42,6 +44,7 @@
 #include <lv2/state/state.h>
 #include <lv2/presets/presets.h>
 #include <lv2/resize-port/resize-port.h>
+#include <lv2/port-groups/port-groups.h>
 #include <lv2/patch/patch.h>
 
 #include "cmidi2.h"
@@ -190,6 +193,14 @@ public:
     int32_t lv2_patch_out_port{-1};
 };
 
+// An AAP audio bus made of LV2 audio ports (see AAPLV2PluginContext::buildAudioBuses()).
+struct AAPLV2AudioBus {
+    uint32_t id;
+    std::string name;
+    // LV2 port indices, in channel order.
+    std::vector<uint32_t> lv2_ports;
+};
+
 struct AAPPresetAndLv2Binary {
     aap_preset_t preset;
     void* data;
@@ -211,16 +222,14 @@ public:
         state_worker.threaded = false;
 
         buildParameterList();
+        buildAudioBuses();
     }
 
     ~AAPLV2PluginContext() {
         for (auto &p: presets)
             if (p->data)
                 free(p->data);
-        for (auto p: midi_atom_inputs)
-            free(p.second);
-        for (auto p: explicitly_allocated_port_buffers)
-            free(p.second);
+        releasePortBuffers();
         if (control_buffer_pointers)
             free(control_buffer_pointers);
         symap_free(symap);
@@ -240,7 +249,107 @@ public:
 
     aap_buffer_t *cached_buffer{nullptr};
 
-    void *dummy_raw_buffer{nullptr};
+    // LV2 audio ports that have no AAP port buffer are connected to them.
+    void *dummy_raw_buffer{nullptr}; // outputs
+    void *dummy_input_buffer{nullptr}; // inputs; always silent
+
+    // Releases what allocatePortBuffers() allocated, so that it can run again when the plugin is
+    // prepared again (e.g. with another bus layout or buffer size).
+    void releasePortBuffers() {
+        for (auto p : midi_atom_inputs)
+            free(p.second);
+        midi_atom_inputs.clear();
+        for (auto p : midi_atom_outputs)
+            free(p.second);
+        midi_atom_outputs.clear();
+        for (auto p : explicitly_allocated_port_buffers)
+            free(p.second);
+        explicitly_allocated_port_buffers.clear();
+        explicit_port_buffer_sizes.clear();
+        free(dummy_raw_buffer);
+        dummy_raw_buffer = nullptr;
+        free(dummy_input_buffer);
+        dummy_input_buffer = nullptr;
+        mappings = AAPLV2PortMappings{};
+        cached_buffer = nullptr;
+    }
+
+    // AAP audio buses, for each direction (0: input, 1: output). The first one is the main bus.
+    std::array<std::vector<AAPLV2AudioBus>, 2> audio_buses{};
+
+    // Builds audio buses from LV2 audio ports and port groups: the pg:mainInput / pg:mainOutput
+    // group (otherwise the ungrouped ports, otherwise the first group) is the main bus, and the
+    // other groups (and the ungrouped ports) are aux buses. Channels follow the LV2 port order.
+    void buildAudioBuses() {
+        auto groupNode = lilv_new_uri(world, LV2_PORT_GROUPS__group);
+        auto sideChainOfNode = lilv_new_uri(world, LV2_PORT_GROUPS__sideChainOf);
+        auto nameNode = lilv_new_uri(world, LV2_CORE__name);
+        for (int d = 0; d < 2; d++) {
+            auto directionNode = d == 0 ? statics->input_port_uri_node : statics->output_port_uri_node;
+            // group URI ("" for ungrouped ports) and its ports, in the order of first appearance
+            std::vector<std::pair<std::string, std::vector<uint32_t>>> groups{};
+            for (uint32_t i = 0, n = lilv_plugin_get_num_ports(plugin); i < n; i++) {
+                auto port = lilv_plugin_get_port_by_index(plugin, i);
+                if (!lilv_port_is_a(plugin, port, statics->audio_port_uri_node) ||
+                    !lilv_port_is_a(plugin, port, directionNode))
+                    continue;
+                std::string group{};
+                if (auto values = lilv_port_get_value(plugin, port, groupNode)) {
+                    if (lilv_nodes_size(values) > 0 && lilv_node_is_uri(lilv_nodes_get_first(values)))
+                        group = lilv_node_as_uri(lilv_nodes_get_first(values));
+                    lilv_nodes_free(values);
+                }
+                auto it = std::find_if(groups.begin(), groups.end(), [&](auto& g) { return g.first == group; });
+                if (it == groups.end())
+                    groups.emplace_back(group, std::vector<uint32_t>{i});
+                else
+                    it->second.emplace_back(i);
+            }
+            if (groups.empty())
+                continue;
+
+            std::string mainGroup{};
+            auto mainNode = lilv_new_uri(world, d == 0 ? LV2_PORT_GROUPS__mainInput : LV2_PORT_GROUPS__mainOutput);
+            if (auto values = lilv_plugin_get_value(plugin, mainNode)) {
+                if (lilv_nodes_size(values) > 0 && lilv_node_is_uri(lilv_nodes_get_first(values)))
+                    mainGroup = lilv_node_as_uri(lilv_nodes_get_first(values));
+                lilv_nodes_free(values);
+            }
+            lilv_node_free(mainNode);
+            auto main = std::find_if(groups.begin(), groups.end(), [&](auto& g) { return g.first == mainGroup; });
+            if (main != groups.end() && main != groups.begin())
+                std::rotate(groups.begin(), main, main + 1);
+
+            for (size_t k = 0; k < groups.size(); k++) {
+                auto& group = groups[k];
+                std::string name{};
+                bool sideChain = false;
+                if (!group.first.empty()) {
+                    auto groupUri = lilv_new_uri(world, group.first.c_str());
+                    for (auto labelNode : {nameNode, statics->rdfs_label_node}) {
+                        if (!name.empty())
+                            break;
+                        if (auto label = lilv_world_get(world, groupUri, labelNode, nullptr)) {
+                            name = lilv_node_as_string(label);
+                            lilv_node_free(label);
+                        }
+                    }
+                    if (auto target = lilv_world_get(world, groupUri, sideChainOfNode, nullptr)) {
+                        sideChain = true;
+                        lilv_node_free(target);
+                    }
+                    lilv_node_free(groupUri);
+                }
+                if (name.empty())
+                    name = k == 0 ? (d == 0 ? "Audio In" : "Audio Out") :
+                           sideChain ? "Sidechain" : (d == 0 ? "Aux In " : "Aux Out ") + std::to_string(k);
+                audio_buses[d].emplace_back(AAPLV2AudioBus{(uint32_t) (d * 0x100 + k), name, group.second});
+            }
+        }
+        lilv_node_free(groupNode);
+        lilv_node_free(sideChainOfNode);
+        lilv_node_free(nameNode);
+    }
 
     // a ControlPort points to single float value, which can be stored in an array.
     float *control_buffer_pointers{nullptr};

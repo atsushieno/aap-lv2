@@ -384,6 +384,36 @@ aap_presets_extension_t presets_ext{nullptr,
                                     aap_lv2_get_preset,
                                     aap_lv2_set_preset_index};
 
+int32_t aap_lv2_get_bus_count(aap_buses_extension_t* ext, AndroidAudioPlugin* plugin,
+                              aap_bus_kind kind, aap_port_direction direction) {
+    auto ctx = (AAPLV2PluginContext *) plugin->plugin_specific;
+    return kind == AAP_BUS_KIND_AUDIO ? (int32_t) ctx->audio_buses[direction == AAP_PORT_DIRECTION_INPUT ? 0 : 1].size() : 0;
+}
+
+aap_bus_info_t aap_lv2_get_bus(aap_buses_extension_t* ext, AndroidAudioPlugin* plugin,
+                               aap_bus_kind kind, aap_port_direction direction, int32_t index) {
+    auto ctx = (AAPLV2PluginContext *) plugin->plugin_specific;
+    aap_bus_info_t info{};
+    auto& buses = ctx->audio_buses[direction == AAP_PORT_DIRECTION_INPUT ? 0 : 1];
+    if (kind != AAP_BUS_KIND_AUDIO || index < 0 || (size_t) index >= buses.size())
+        return info;
+    auto& bus = buses[(size_t) index];
+    info.id = bus.id;
+    info.kind = AAP_BUS_KIND_AUDIO;
+    info.direction = direction;
+    info.role = index == 0 ? AAP_BUS_ROLE_MAIN : AAP_BUS_ROLE_AUX;
+    strncpy(info.name, bus.name.c_str(), AAP_MAX_BUS_NAME_CHARS - 1);
+    info.channel_count = (int32_t) bus.lv2_ports.size();
+    // the layout is left empty; the framework fills the default one for the channel count.
+    info.enabled = true;
+    return info;
+}
+
+aap_buses_extension_t buses_ext{nullptr,
+                                aap_lv2_get_bus_count,
+                                aap_lv2_get_bus,
+                                nullptr};
+
 void* aap_lv2_plugin_get_extension(AndroidAudioPlugin *plugin, const char *uri) {
     if (strcmp(uri, AAP_PARAMETERS_EXTENSION_URI) == 0) {
         return &params_ext;
@@ -393,6 +423,9 @@ void* aap_lv2_plugin_get_extension(AndroidAudioPlugin *plugin, const char *uri) 
     }
     if (strcmp(uri, AAP_PRESETS_EXTENSION_URI) == 0) {
         return &presets_ext;
+    }
+    if (strcmp(uri, AAP_BUSES_EXTENSION_URI) == 0) {
+        return &buses_ext;
     }
     return nullptr;
 }
@@ -585,7 +618,6 @@ void aap_lv2_plugin_delete(
     // Destroy the worker
     jalv_worker_destroy(&l->worker);
 
-    free(l->dummy_raw_buffer);
     lilv_instance_free(l->instance);
     delete l->statics;
     lilv_world_free(l->world);

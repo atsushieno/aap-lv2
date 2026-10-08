@@ -191,6 +191,7 @@ int main(int argc, const char **argv)
 		fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/midi/v3' />\n");
 		// we put default Web UI anyways
 		fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/gui/v3' />\n");
+		fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/buses/v1' />\n");
 		fprintf(xmlFP, "    </extensions>\n");
 
 #if GENERATE_PARAMETERS_NODE
@@ -267,20 +268,8 @@ int main(int argc, const char **argv)
 		fprintf(xmlFP, "    </parameters>\n");
 #endif
 
-		fprintf(xmlFP, "    <ports>\n");
-		for (uint32_t p = 0; p < lilv_plugin_get_num_ports(plugin); p++) {
-			auto port = lilv_plugin_get_port_by_index(plugin, p);
-			auto nameNode = lilv_port_get_name(plugin, port);
-			if (IS_AUDIO_PORT(plugin, port))
-				fprintf(xmlFP, "      <port direction='%s' content='audio' name='%s' />\n",
-					IS_INPUT_PORT(plugin, port) ? "input" : "output",
-					nameNode ? lilv_node_as_string(nameNode) : IS_INPUT_PORT(plugin, port) ? "(Audio In)" : "(Audio Out)");
-			if (name)
-				free(nameNode);
-		}
-		fprintf(xmlFP, "      <port direction='input' content='midi2' name='MIDI In' />\n");
-		fprintf(xmlFP, "      <port direction='output' content='midi2' name='MIDI Out' />\n");
-		fprintf(xmlFP, "    </ports>\n");
+		// Ports are not described here: the bridge reports the audio buses through the buses
+		// extension, and the event (MIDI) buses always exist.
 
 		fprintf(xmlFP, "  </plugin>\n");
 
