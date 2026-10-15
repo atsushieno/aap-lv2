@@ -57,6 +57,10 @@ jobs:
     - name: build aap-lv2 library
       run: ./gradlew :androidaudioplugin-lv2:build :androidaudioplugin-lv2:publishToMavenLocal
       working-directory: external/aap-lv2
+    - name: build soundpack libraries
+      if: hashFiles('external/soundpack-provider-for-android/settings.gradle.kts') != ''
+      run: ./gradlew publishToMavenLocal
+      working-directory: external/soundpack-provider-for-android
     - name: build
       run: ./gradlew build bundle
 
@@ -109,6 +113,12 @@ jobs:
     - name: build aap-lv2 library
       run: ./gradlew :androidaudioplugin-lv2:build :androidaudioplugin-lv2:publishToMavenLocal
       working-directory: external/aap-lv2
+      env:
+        ANDROID_SDK_ROOT: /Users/runner/Library/Android/sdk
+    - name: build soundpack libraries
+      if: hashFiles('external/soundpack-provider-for-android/settings.gradle.kts') != ''
+      run: ./gradlew publishToMavenLocal
+      working-directory: external/soundpack-provider-for-android
       env:
         ANDROID_SDK_ROOT: /Users/runner/Library/Android/sdk
     - name: Bump version
