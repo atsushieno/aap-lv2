@@ -4,7 +4,9 @@
       library="libandroidaudioplugin-lv2.so" entrypoint="GetAndroidAudioPluginFactoryLV2Bridge"
       gui:ui-view-factory="org.androidaudioplugin.ui.compose.ComposeAudioPluginViewFactory"
       xmlns:gui="urn://androidaudioplugin.org/extensions/gui">
-    <extensions bom="0.12.0" />
+    <extensions bom="0.12.0">
+      <extension uri="urn://androidaudioplugin.org/extensions/offline-rendering/v1" />
+    </extensions>
     <ports>
       <port direction="input"  content="midi2" name="Control" />
       <port direction="output" content="midi2" name="Control" />

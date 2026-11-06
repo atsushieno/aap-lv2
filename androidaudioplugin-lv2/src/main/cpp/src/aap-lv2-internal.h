@@ -19,7 +19,9 @@
 #include <aap/android-audio-plugin.h>
 #include <aap/ext/midi.h>
 #include <aap/ext/parameters.h>
+#include <atomic>
 #include <aap/ext/presets.h>
+#include <aap/ext/offline-rendering.h>
 #include <aap/ext/state.h>
 #include <aap/ext/plugin-info.h>
 #include <aap/ext/buses.h>
@@ -95,6 +97,7 @@ public:
         integer_uri_node = lilv_new_uri (world, LV2_CORE__integer);
         discrete_cv_uri_node = lilv_new_uri(world, LV2_PORT_PROPS__discreteCV);
         rdfs_label_node = lilv_new_uri(world, LILV_NS_RDFS "label");
+        free_wheeling_uri_node = lilv_new_uri(world, LV2_CORE__freeWheeling);
     }
 
     ~AAPLV2PluginContextStatics() {
@@ -109,6 +112,7 @@ public:
         lilv_node_free(resize_port_minimum_size_node);
         lilv_node_free(presets_preset_node);
         lilv_node_free(rdfs_label_node);
+        lilv_node_free(free_wheeling_uri_node);
     }
 
     LilvNode *audio_port_uri_node, *control_port_uri_node, *atom_port_uri_node,
@@ -118,7 +122,7 @@ public:
             *discrete_cv_uri_node,
             *midi_event_uri_node, *patch_message_uri_node,
             *resize_port_minimum_size_node, *presets_preset_node,
-            *work_interface_uri_node, *rdfs_label_node;
+            *work_interface_uri_node, *rdfs_label_node, *free_wheeling_uri_node;
 };
 
 class AAPLV2PluginContext;
@@ -221,6 +225,9 @@ public:
         worker.threaded = false;
         state_worker.threaded = false;
 
+        auto freeWheelingPort = lilv_plugin_get_port_by_designation(plugin, statics->input_port_uri_node, statics->free_wheeling_uri_node);
+        if (freeWheelingPort && IS_CONTROL_PORT(plugin, freeWheelingPort))
+            free_wheeling_port = (int32_t) lilv_port_get_index(plugin, freeWheelingPort);
         buildParameterList();
         buildAudioBuses();
     }
@@ -246,6 +253,13 @@ public:
     LilvInstance *instance{nullptr};
     std::string aap_plugin_id{};
     int32_t sample_rate{48000};
+    // The lv2:freeWheeling control input port. Only the offline rendering extension assigns it;
+    // it is neither a parameter nor a part of the state.
+    int32_t free_wheeling_port{-1};
+    // Offline, worker requests run inside run(), so that the results land on a repeatable block.
+    bool offline_mode{false};
+    // Requests the worker thread has not finished. An offline block waits for them first.
+    std::atomic<int32_t> worker_requests_pending{0};
 
     aap_buffer_t *cached_buffer{nullptr};
 
@@ -479,7 +493,7 @@ public:
 
         for (uint32_t p = 0; p < lilv_plugin_get_num_ports(plugin); p++) {
             auto port = lilv_plugin_get_port_by_index(plugin, p);
-            if (!IS_CONTROL_PORT(plugin, port))
+            if (!IS_CONTROL_PORT(plugin, port) || (int32_t) p == free_wheeling_port)
                 continue;
             registerParameter(plugin, port);
         }

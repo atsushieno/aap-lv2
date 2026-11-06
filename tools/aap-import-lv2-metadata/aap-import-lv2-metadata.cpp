@@ -192,6 +192,7 @@ int main(int argc, const char **argv)
 		// we put default Web UI anyways
 		fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/gui/v3' />\n");
 		fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/buses/v1' />\n");
+		fprintf(xmlFP, "      <extension uri='urn://androidaudioplugin.org/extensions/offline-rendering/v1' />\n");
 		fprintf(xmlFP, "    </extensions>\n");
 
 #if GENERATE_PARAMETERS_NODE

@@ -149,6 +149,8 @@ void allocatePortBuffers(AndroidAudioPlugin *plugin, aap_buffer_t *buffer) {
             auto defaultNode = lilv_port_get(lilvPlugin, lilvPort, ctx->statics->default_uri_node);
             if (defaultNode)
                 ctx->control_buffer_pointers[i] = lilv_node_as_float(defaultNode);
+            if (i == ctx->free_wheeling_port)
+                ctx->control_buffer_pointers[i] = ctx->offline_mode ? 1.0f : 0.0f;
         }
 
         // Try to get rsz:minimumSize. If it exists, we have to allocate sufficient buffer.
@@ -406,7 +408,8 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, aap_buffer_t 
             } else {
                 // set ControlPort value.
                 uint32_t portIndex = ctx->mappings.lv2_index_to_port[paramId];
-                ctx->control_buffer_pointers[portIndex] = paramValueF32;
+                if ((int32_t) portIndex != ctx->free_wheeling_port)
+                    ctx->control_buffer_pointers[portIndex] = paramValueF32;
             }
 
             continue;
@@ -530,6 +533,11 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
     // pre-process
 
     clearBufferForRun(ctx, buffer);
+
+    // Offline, wait for what was requested in realtime mode, so that its result is not missed.
+    if (ctx->offline_mode)
+        while (ctx->worker_requests_pending.load(std::memory_order_acquire) > 0)
+            usleep(100);
 
     /* Process any worker replies. */
     jalv_worker_emit_responses(&ctx->state_worker, ctx->instance);

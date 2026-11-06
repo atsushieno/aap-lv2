@@ -93,6 +93,7 @@ worker_func(void* data)
         worker->iface->work(
                 jalv->instance->lv2_handle, jalv_worker_respond, worker, size, buf);
         zix_sem_post(&jalv->work_lock);
+        jalv->worker_requests_pending.fetch_sub(1, std::memory_order_release);
     }
 
     free(buf);
@@ -145,8 +146,9 @@ jalv_worker_schedule(LV2_Worker_Schedule_Handle handle,
 {
     JalvWorker* worker = (JalvWorker*)handle;
     Jalv*       jalv   = worker->ctx;
-    if (worker->threaded) {
+    if (worker->threaded && !jalv->offline_mode) {
         // Schedule a request to be executed by the worker thread
+        jalv->worker_requests_pending.fetch_add(1, std::memory_order_relaxed);
         zix_ring_write(worker->requests, (const char*)&size, sizeof(size));
         zix_ring_write(worker->requests, (const char*)data, size);
         zix_sem_post(&worker->sem);
@@ -193,6 +195,7 @@ static const LilvPort* aap_lv2_state_control_port(AAPLV2PluginContext* context, 
     lilv_node_free(node);
     if (!port || lilv_port_get_index(context->plugin, port) >= lilv_plugin_get_num_ports(context->plugin) ||
         !context->IS_CONTROL_PORT(context->plugin, port)) return nullptr;
+    if ((int32_t) lilv_port_get_index(context->plugin, port) == context->free_wheeling_port) return nullptr;
     return port;
 }
 
@@ -414,6 +417,19 @@ aap_buses_extension_t buses_ext{nullptr,
                                 aap_lv2_get_bus,
                                 nullptr};
 
+// A plugin without a lv2:freeWheeling port cannot be told about the mode, but it can still render.
+aap_offline_rendering_result_t aap_lv2_set_offline_mode(aap_offline_rendering_extension_t* ext, AndroidAudioPlugin* plugin,
+                                                        aap_offline_rendering_mode_t mode) {
+    auto ctx = (AAPLV2PluginContext *) plugin->plugin_specific;
+    ctx->offline_mode = mode == AAP_OFFLINE_RENDERING_MODE_OFFLINE;
+    // Before the first prepare() there is no port value yet; it is assigned at allocation.
+    if (ctx->free_wheeling_port >= 0 && ctx->control_buffer_pointers)
+        ctx->control_buffer_pointers[ctx->free_wheeling_port] = ctx->offline_mode ? 1.0f : 0.0f;
+    return AAP_OFFLINE_RENDERING_RESULT_OK;
+}
+
+aap_offline_rendering_extension_t offline_rendering_ext{nullptr, aap_lv2_set_offline_mode};
+
 void* aap_lv2_plugin_get_extension(AndroidAudioPlugin *plugin, const char *uri) {
     if (strcmp(uri, AAP_PARAMETERS_EXTENSION_URI) == 0) {
         return &params_ext;
@@ -426,6 +442,9 @@ void* aap_lv2_plugin_get_extension(AndroidAudioPlugin *plugin, const char *uri) 
     }
     if (strcmp(uri, AAP_BUSES_EXTENSION_URI) == 0) {
         return &buses_ext;
+    }
+    if (strcmp(uri, AAP_OFFLINE_RENDERING_EXTENSION_URI) == 0) {
+        return &offline_rendering_ext;
     }
     return nullptr;
 }
