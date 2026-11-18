@@ -25,6 +25,7 @@
 #include <aap/ext/state.h>
 #include <aap/ext/plugin-info.h>
 #include <aap/ext/buses.h>
+#include <aap/ext/latency.h>
 
 #include "symap.h"
 #include "zix/sem.h"
@@ -98,6 +99,8 @@ public:
         discrete_cv_uri_node = lilv_new_uri(world, LV2_PORT_PROPS__discreteCV);
         rdfs_label_node = lilv_new_uri(world, LILV_NS_RDFS "label");
         free_wheeling_uri_node = lilv_new_uri(world, LV2_CORE__freeWheeling);
+        latency_uri_node = lilv_new_uri(world, LV2_CORE__latency);
+        reports_latency_uri_node = lilv_new_uri(world, LV2_CORE__reportsLatency);
     }
 
     ~AAPLV2PluginContextStatics() {
@@ -113,6 +116,8 @@ public:
         lilv_node_free(presets_preset_node);
         lilv_node_free(rdfs_label_node);
         lilv_node_free(free_wheeling_uri_node);
+        lilv_node_free(latency_uri_node);
+        lilv_node_free(reports_latency_uri_node);
     }
 
     LilvNode *audio_port_uri_node, *control_port_uri_node, *atom_port_uri_node,
@@ -122,7 +127,8 @@ public:
             *discrete_cv_uri_node,
             *midi_event_uri_node, *patch_message_uri_node,
             *resize_port_minimum_size_node, *presets_preset_node,
-            *work_interface_uri_node, *rdfs_label_node, *free_wheeling_uri_node;
+            *work_interface_uri_node, *rdfs_label_node, *free_wheeling_uri_node,
+            *latency_uri_node, *reports_latency_uri_node;
 };
 
 class AAPLV2PluginContext;
@@ -228,6 +234,15 @@ public:
         auto freeWheelingPort = lilv_plugin_get_port_by_designation(plugin, statics->input_port_uri_node, statics->free_wheeling_uri_node);
         if (freeWheelingPort && IS_CONTROL_PORT(plugin, freeWheelingPort))
             free_wheeling_port = (int32_t) lilv_port_get_index(plugin, freeWheelingPort);
+        // LV2 plugins report latency on one control output port, by designation or port property.
+        auto latencyPort = lilv_plugin_get_port_by_designation(plugin, statics->output_port_uri_node, statics->latency_uri_node);
+        for (uint32_t p = 0; !latencyPort && p < lilv_plugin_get_num_ports(plugin); p++) {
+            auto port = lilv_plugin_get_port_by_index(plugin, p);
+            if (IS_OUTPUT_PORT(plugin, port) && lilv_port_has_property(plugin, port, statics->reports_latency_uri_node))
+                latencyPort = port;
+        }
+        if (latencyPort && IS_CONTROL_PORT(plugin, latencyPort) && IS_OUTPUT_PORT(plugin, latencyPort))
+            latency_port = (int32_t) lilv_port_get_index(plugin, latencyPort);
         buildParameterList();
         buildAudioBuses();
     }
@@ -260,6 +275,36 @@ public:
     bool offline_mode{false};
     // Requests the worker thread has not finished. An offline block waits for them first.
     std::atomic<int32_t> worker_requests_pending{0};
+
+    // The lv2:latency (lv2:reportsLatency) control output port. run() writes the latency there.
+    int32_t latency_port{-1};
+    // The latency that run() last reported. The host is notified when it changes.
+    std::atomic<int32_t> last_latency{0};
+    // notify_latency_changed() is RT-unsafe, so this thread sends what run() detects.
+    ZixSem latency_sem{};
+    ZixThread latency_thread{};
+    bool latency_thread_started{false};
+    std::atomic<bool> latency_notify_pending{false};
+    std::atomic<bool> latency_thread_exit{false};
+
+    // The value on the latency port, as whole samples. 0 until the first run().
+    int32_t getLatencyInSamples() {
+        if (latency_port < 0 || !control_buffer_pointers)
+            return 0;
+        auto value = control_buffer_pointers[latency_port];
+        return value > 0 ? (int32_t) std::lround(value) : 0; // also NaN
+    }
+
+    // Called after run(), on the audio thread. It only wakes the notifier thread.
+    void detectLatencyChange() {
+        if (latency_port < 0)
+            return;
+        auto latency = getLatencyInSamples();
+        if (last_latency.exchange(latency) == latency)
+            return;
+        if (latency_thread_started && !latency_notify_pending.exchange(true))
+            zix_sem_post(&latency_sem);
+    }
 
     aap_buffer_t *cached_buffer{nullptr};
 

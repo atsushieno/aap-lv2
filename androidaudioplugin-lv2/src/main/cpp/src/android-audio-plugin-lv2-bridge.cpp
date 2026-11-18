@@ -133,9 +133,14 @@ void allocatePortBuffers(AndroidAudioPlugin *plugin, aap_buffer_t *buffer) {
     //     and IF they indeed moved (we store `cached_buffer`), then we can call `connect_port()` at any time.
 
     // (3) ^
+    // run() writes the latency port, so keep its last value for queries before the next run().
+    float lastLatency = ctx->latency_port >= 0 && ctx->control_buffer_pointers ?
+            ctx->control_buffer_pointers[ctx->latency_port] : 0.0f;
     if (ctx->control_buffer_pointers)
         free(ctx->control_buffer_pointers);
     ctx->control_buffer_pointers = static_cast<float *>(calloc(numLV2Ports, sizeof(float)));
+    if (ctx->latency_port >= 0)
+        ctx->control_buffer_pointers[ctx->latency_port] = lastLatency;
     ctx->markAllParameterValuesDirty();
 
     int32_t numLV2MidiInPorts = 0;
@@ -581,6 +586,7 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
     // post-process
 
     read_forge_events_as_midi2_events(ctx, buffer);
+    ctx->detectLatencyChange();
 
 #if ANDROID
     if (ATrace_isEnabled()) {

@@ -430,6 +430,46 @@ aap_offline_rendering_result_t aap_lv2_set_offline_mode(aap_offline_rendering_ex
 
 aap_offline_rendering_extension_t offline_rendering_ext{nullptr, aap_lv2_set_offline_mode};
 
+int32_t aap_lv2_get_latency_in_samples(aap_latency_extension_t* ext, AndroidAudioPlugin* plugin) {
+    return ((AAPLV2PluginContext *) plugin->plugin_specific)->getLatencyInSamples();
+}
+
+aap_latency_extension_t latency_ext{nullptr, aap_lv2_get_latency_in_samples};
+
+// Sends the latency changes that run() detected, off the audio thread.
+static void* aap_lv2_latency_notifier(void* data) {
+    auto ctx = (AAPLV2PluginContext *) data;
+    while (true) {
+        zix_sem_wait(&ctx->latency_sem);
+        if (ctx->latency_thread_exit.load())
+            break;
+        // Cleared first, so that a change during the call wakes this thread again.
+        ctx->latency_notify_pending = false;
+        auto ext = (aap_latency_host_extension_t *) ctx->aap_host->get_extension(ctx->aap_host, AAP_LATENCY_EXTENSION_URI);
+        if (ext && ext->notify_latency_changed)
+            ext->notify_latency_changed(ext, ctx->aap_host);
+    }
+    return nullptr;
+}
+
+static void aap_lv2_start_latency_notifier(AAPLV2PluginContext* ctx) {
+    if (ctx->latency_port < 0 || zix_sem_init(&ctx->latency_sem, 0))
+        return;
+    ctx->latency_thread_started = !zix_thread_create(&ctx->latency_thread, 65536, aap_lv2_latency_notifier, ctx);
+    if (!ctx->latency_thread_started)
+        zix_sem_destroy(&ctx->latency_sem);
+}
+
+static void aap_lv2_stop_latency_notifier(AAPLV2PluginContext* ctx) {
+    if (!ctx->latency_thread_started)
+        return;
+    ctx->latency_thread_exit = true;
+    zix_sem_post(&ctx->latency_sem);
+    zix_thread_join(ctx->latency_thread, nullptr);
+    zix_sem_destroy(&ctx->latency_sem);
+    ctx->latency_thread_started = false;
+}
+
 void* aap_lv2_plugin_get_extension(AndroidAudioPlugin *plugin, const char *uri) {
     if (strcmp(uri, AAP_PARAMETERS_EXTENSION_URI) == 0) {
         return &params_ext;
@@ -445,6 +485,9 @@ void* aap_lv2_plugin_get_extension(AndroidAudioPlugin *plugin, const char *uri) 
     }
     if (strcmp(uri, AAP_OFFLINE_RENDERING_EXTENSION_URI) == 0) {
         return &offline_rendering_ext;
+    }
+    if (strcmp(uri, AAP_LATENCY_EXTENSION_URI) == 0) {
+        return &latency_ext;
     }
     return nullptr;
 }
@@ -610,6 +653,8 @@ AndroidAudioPlugin *aap_lv2_plugin_new(
         }
     }
 
+    aap_lv2_start_latency_notifier(ctx);
+
     auto ret = new AndroidAudioPlugin{
             ctx,
             aap_lv2_plugin_prepare,
@@ -636,6 +681,8 @@ void aap_lv2_plugin_delete(
 
     // Destroy the worker
     jalv_worker_destroy(&l->worker);
+
+    aap_lv2_stop_latency_notifier(l);
 
     lilv_instance_free(l->instance);
     delete l->statics;
