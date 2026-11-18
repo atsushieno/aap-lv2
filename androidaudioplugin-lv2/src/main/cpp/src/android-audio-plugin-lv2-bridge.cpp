@@ -316,8 +316,10 @@ bool readMidi2Parameter(uint8_t *group, uint8_t* channel, uint8_t* key, uint8_t*
                                        *raw, *(raw + 1), *(raw + 2), *(raw + 3));
 }
 
+// Only events in [chunkStart, chunkStart + chunkLength) of the whole frameCount block are written, relative to chunkStart.
 bool
-write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, aap_buffer_t *buffer, int32_t frameCount) {
+write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, aap_buffer_t *buffer, int32_t frameCount,
+                                         int32_t chunkStart, int32_t chunkLength) {
 
     int32_t aapInPort = ctx->mappings.aap_midi_in_port;
     void *src = buffer->get_buffer(buffer, aapInPort);
@@ -383,6 +385,14 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, aap_buffer_t 
             continue;
         }
 
+        auto frameTime = static_cast<int64_t>(
+                (double) currentJRTimestamp / CMIDI2_JR_TIMESTAMP_TICKS_PER_SECOND * ctx->sample_rate);
+        if (frameCount > 0 && frameTime >= frameCount)
+            frameTime = frameCount - 1;
+        if (frameTime < chunkStart || (frameTime >= chunkStart + chunkLength && chunkStart + chunkLength < frameCount))
+            continue;
+        frameTime -= chunkStart;
+
         uint8_t paramGroup, paramChannel, paramKey{0}, paramExtra{0};
         uint16_t paramId;
         uint32_t paramValue;
@@ -428,11 +438,6 @@ write_midi2_events_as_midi1_to_lv2_forge(AAPLV2PluginContext* ctx, aap_buffer_t 
 
         if (!midiForge)
             continue;
-
-        auto frameTime = static_cast<int64_t>(
-                (double) currentJRTimestamp / CMIDI2_JR_TIMESTAMP_TICKS_PER_SECOND * ctx->sample_rate);
-        if (frameCount > 0 && frameTime >= frameCount)
-            frameTime = frameCount - 1;
 
         auto frameRef = lv2_atom_forge_frame_time(midiForge, frameTime);
         auto atomRef = frameRef ? lv2_atom_forge_atom(midiForge, midiEventSize, ctx->urids.urid_midi_event_type) : 0;
@@ -506,6 +511,11 @@ read_forge_events_as_midi2_events(AAPLV2PluginContext* ctx, aap_buffer_t * buffe
     return true;
 }
 
+void connectMappedAudioPorts(AAPLV2PluginContext* ctx, aap_buffer_t *buffer, int32_t frameOffset) {
+    for (auto& [aapPort, lv2Port] : ctx->mappings.aap_to_lv2_portmap)
+        lilv_instance_connect_port(ctx->instance, lv2Port, static_cast<float*>(buffer->get_buffer(buffer, aapPort)) + frameOffset);
+}
+
 const char *AAP_LV2_TRACE_SECTION_NAME = "aap::lv2::process";
 const char *AAP_LV2_TRACE_SECTION_RUN_NAME = "aap::lv2::lilv_run";
 
@@ -539,25 +549,6 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
 
     clearBufferForRun(ctx, buffer);
 
-    // Offline, wait for what was requested in realtime mode, so that its result is not missed.
-    if (ctx->offline_mode)
-        while (ctx->worker_requests_pending.load(std::memory_order_acquire) > 0)
-            usleep(100);
-
-    /* Process any worker replies. */
-    jalv_worker_emit_responses(&ctx->state_worker, ctx->instance);
-    jalv_worker_emit_responses(&ctx->worker, ctx->instance);
-
-    /* Notify the plugin the run() cycle is finished */
-    if (ctx->worker.iface && ctx->worker.iface->end_run)
-        ctx->worker.iface->end_run(ctx->instance->lv2_handle);
-
-    // Convert AAP MIDI/MIDI2 messages into Atom Sequence of MidiEvent.
-    // Here, we iterate over UMPs multiple times, which would look inefficient, but in practice
-    // there would be only one MIDI port, and there would not be many MIDI in messages.
-    if (!write_midi2_events_as_midi1_to_lv2_forge(ctx, buffer, frameCount))
-        return;
-
     auto numFramesInBuffer = buffer->num_frames(buffer);
     if (numFramesInBuffer < frameCount) {
         aap::a_log_f(AAP_LOG_LEVEL_ERROR, AAP_LV2_TAG, "frameCount passed to process() function is larger than num_frames() in aap_buffer_t.");
@@ -572,7 +563,45 @@ void aap_lv2_plugin_process(AndroidAudioPlugin *plugin,
     }
 #endif
 
-    lilv_instance_run(ctx->instance, frameCount);
+    // A block longer than the promised maxBlockLength runs in equal chunks, so none falls below minBlockLength.
+    const int32_t maxChunk = ctx->features.maxBlockLengthValue;
+    const int32_t numChunks = std::max(1, (frameCount + maxChunk - 1) / maxChunk);
+    int32_t chunkStart = 0;
+    for (int32_t chunk = 0; chunk < numChunks; chunk++) {
+        auto remainingChunks = numChunks - chunk;
+        auto chunkLength = (frameCount - chunkStart + remainingChunks - 1) / remainingChunks;
+        if (chunk > 0) {
+            resetMidiAtomBuffers(ctx, buffer, ctx->midi_atom_inputs, true);
+            resetMidiAtomBuffers(ctx, buffer, ctx->midi_atom_outputs, false);
+            resetPatchAtomBuffer(ctx, buffer, ctx->mappings.lv2_patch_in_port);
+            resetPatchAtomBuffer(ctx, buffer, ctx->mappings.lv2_patch_out_port);
+            connectMappedAudioPorts(ctx, buffer, chunkStart);
+        }
+
+        // Offline, wait for what was requested in realtime mode, so that its result is not missed.
+        if (ctx->offline_mode)
+            while (ctx->worker_requests_pending.load(std::memory_order_acquire) > 0)
+                usleep(100);
+
+        /* Process any worker replies. */
+        jalv_worker_emit_responses(&ctx->state_worker, ctx->instance);
+        jalv_worker_emit_responses(&ctx->worker, ctx->instance);
+
+        /* Notify the plugin the run() cycle is finished */
+        if (ctx->worker.iface && ctx->worker.iface->end_run)
+            ctx->worker.iface->end_run(ctx->instance->lv2_handle);
+
+        // Convert AAP MIDI/MIDI2 messages into Atom Sequence of MidiEvent.
+        // Here, we iterate over UMPs multiple times, which would look inefficient, but in practice
+        // there would be only one MIDI port, and there would not be many MIDI in messages.
+        if (!write_midi2_events_as_midi1_to_lv2_forge(ctx, buffer, frameCount, chunkStart, chunkLength))
+            break;
+
+        lilv_instance_run(ctx->instance, chunkLength);
+        chunkStart += chunkLength;
+    }
+    if (numChunks > 1)
+        connectMappedAudioPorts(ctx, buffer, 0);
 
 #if ANDROID
     if (ATrace_isEnabled()) {

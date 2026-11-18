@@ -163,7 +163,7 @@ public:
     const int minBlockLengthValue = 128;
     // FIXME: this should not be a magic number, but lowering the value causes aap-sfizz crash.
     //  Needs some investigation.
-    const int maxBlockLengthValue = 8192;
+    const int maxBlockLengthValue = 4096;
     LV2_Options_Option minBlockLengthOption;
     LV2_Options_Option maxBlockLengthOption;
     std::array<LV2_Options_Option, 3> options{};
